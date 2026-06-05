@@ -11,14 +11,19 @@ import { Badge } from "../components/Badge";
 import { MetricCard } from "../components/MetricCard";
 import { SectionHeader } from "../components/SectionHeader";
 import { DataTable } from "../components/DataTable";
-import { formatDate, daysUntil } from "../utils/dateUtils";
+import { formatDate } from "../utils/dateUtils";
 
 import { staff } from "../data/staff";
 import { trainingCourses, trainingRecords } from "../data/training";
 
-function getRecordCourse(record) {
-  return trainingCourses.find((course) => course.id === record.courseId);
-}
+import {
+  enrichTrainingRecords,
+  filterTrainingRecords,
+  getMissingTrainingAssignments,
+  getRecordsForCourse,
+  getTrainingCourseById,
+  getTrainingMetrics,
+} from "../services/trainingService";
 
 export function TrainingPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -26,65 +31,40 @@ export function TrainingPage() {
   const [selectedCourseId, setSelectedCourseId] = useState(trainingCourses[0].id);
 
   const enrichedRecords = useMemo(
-    () =>
-      trainingRecords.map((record) => {
-        const course = getRecordCourse(record);
-
-        return {
-          ...record,
-          courseName: course?.name || "Unknown course",
-          category: course?.category || "Unknown",
-          risk: course?.risk || "Medium",
-          renewalMonths: course?.renewalMonths || "Unknown",
-          daysUntilExpiry: daysUntil(record.expiryDate),
-        };
-      }),
+    () => enrichTrainingRecords(trainingRecords, trainingCourses),
     []
   );
 
-  const filteredRecords = enrichedRecords.filter((record) => {
-    const searchText =
-      `${record.staffName} ${record.role} ${record.courseName} ${record.category}`.toLowerCase();
-
-    const matchesSearch = searchText.includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "All" || record.status === statusFilter;
-
-    return matchesSearch && matchesStatus;
-  });
-
-  const selectedCourse =
-    trainingCourses.find((course) => course.id === selectedCourseId) ||
-    trainingCourses[0];
-
-  const selectedCourseRecords = enrichedRecords.filter(
-    (record) => record.courseId === selectedCourse.id
+  const filteredRecords = useMemo(
+    () => filterTrainingRecords(enrichedRecords, searchTerm, statusFilter),
+    [enrichedRecords, searchTerm, statusFilter]
   );
 
-  const overdueCount = enrichedRecords.filter(
-    (record) => record.status === "Overdue"
-  ).length;
-
-  const dueSoonCount = enrichedRecords.filter(
-    (record) => record.status === "Due soon"
-  ).length;
-
-  const completeCount = enrichedRecords.filter(
-    (record) => record.status === "Complete"
-  ).length;
-
-  const completionRate = Math.round(
-    (completeCount / enrichedRecords.length) * 100
+  const selectedCourse = useMemo(
+    () => getTrainingCourseById(selectedCourseId, trainingCourses),
+    [selectedCourseId]
   );
 
-  const highRiskOverdueCount = enrichedRecords.filter(
-    (record) => record.status === "Overdue" && record.risk === "High"
-  ).length;
+  const selectedCourseRecords = useMemo(
+    () => getRecordsForCourse(trainingRecords, selectedCourse.id, trainingCourses),
+    [selectedCourse.id]
+  );
+
+  const metrics = useMemo(
+    () => getTrainingMetrics(trainingRecords, trainingCourses),
+    []
+  );
+
+  const missingAssignments = useMemo(
+    () => getMissingTrainingAssignments(selectedCourse, trainingRecords, staff),
+    [selectedCourse]
+  );
 
   return (
     <>
       <SectionHeader eyebrow="Training" title="Mandatory training matrix">
         Role-based mandatory training, renewal cycles, completion tracking and
-        evidence status. This module will later feed overdue items into the Inbox.
+        evidence status. Training calculations now run through the service layer.
       </SectionHeader>
 
       <section className="metric-grid">
@@ -96,19 +76,19 @@ export function TrainingPage() {
         />
         <MetricCard
           title="Overdue"
-          value={overdueCount}
+          value={metrics.overdueRecords.length}
           detail="Training records expired"
           icon={AlertTriangle}
         />
         <MetricCard
           title="Due soon"
-          value={dueSoonCount}
+          value={metrics.dueSoonRecords.length}
           detail="Renewals approaching"
           icon={Clock}
         />
         <MetricCard
           title="Completion"
-          value={`${completionRate}%`}
+          value={`${metrics.completionRate}%`}
           detail="Current mock completion rate"
           icon={CheckCircle2}
         />
@@ -157,6 +137,8 @@ export function TrainingPage() {
               { key: "evidence", label: "Evidence" },
             ]}
             rows={filteredRecords}
+            emptyTitle="No training records found"
+            emptyMessage="Try clearing the search box or changing the status filter."
             renderCell={(row, key) => {
               if (key === "staffName") return <strong>{row.staffName}</strong>;
 
@@ -257,6 +239,8 @@ export function TrainingPage() {
               { key: "evidence", label: "Evidence" },
             ]}
             rows={selectedCourseRecords}
+            emptyTitle="No records for this course"
+            emptyMessage="No staff training records exist for this selected course yet."
             renderCell={(row, key) => {
               if (key === "staffName") return <strong>{row.staffName}</strong>;
               if (key === "status") return <Badge>{row.status}</Badge>;
@@ -273,28 +257,17 @@ export function TrainingPage() {
           </SectionHeader>
 
           <div className="governance-alert-grid">
-            {staff
-              .filter((person) => selectedCourse.requiredFor.includes(person.role))
-              .map((person) => {
-                const hasRecord = selectedCourseRecords.some(
-                  (record) => record.staffName === person.name
-                );
-
-                return (
-                  <div className="governance-alert" key={person.name}>
-                    <div>
-                      <strong>{person.name}</strong>
-                      <span>
-                        {person.role} ·{" "}
-                        {hasRecord
-                          ? "Training record exists"
-                          : "No training record found"}
-                      </span>
-                    </div>
-                    <Badge>{hasRecord ? "Complete" : "Overdue"}</Badge>
-                  </div>
-                );
-              })}
+            {missingAssignments.map((person) => (
+              <div className="governance-alert" key={person.name}>
+                <div>
+                  <strong>{person.name}</strong>
+                  <span>
+                    {person.role} · {person.detail}
+                  </span>
+                </div>
+                <Badge>{person.status}</Badge>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -305,34 +278,29 @@ export function TrainingPage() {
         </SectionHeader>
 
         <div className="governance-alert-grid">
-          {enrichedRecords
-            .filter(
-              (record) =>
-                record.status === "Overdue" || record.status === "Due soon"
-            )
-            .map((record) => (
-              <div className="governance-alert" key={record.id}>
-                <div>
-                  <strong>{record.staffName}</strong>
-                  <span>
-                    {record.courseName} · {record.status} · expires{" "}
-                    {formatDate(record.expiryDate)}
-                  </span>
-                </div>
-                <Badge>{record.status}</Badge>
+          {[...metrics.overdueRecords, ...metrics.dueSoonRecords].map((record) => (
+            <div className="governance-alert" key={record.id}>
+              <div>
+                <strong>{record.staffName}</strong>
+                <span>
+                  {record.courseName} · {record.status} · expires{" "}
+                  {formatDate(record.expiryDate)}
+                </span>
               </div>
-            ))}
+              <Badge>{record.status}</Badge>
+            </div>
+          ))}
         </div>
 
-        {highRiskOverdueCount > 0 ? (
+        {metrics.highRiskOverdueRecords.length > 0 ? (
           <div className="danger-banner compact-danger">
             <AlertTriangle size={22} />
             <div>
               <strong>High-risk overdue training</strong>
               <p>
-                {highRiskOverdueCount} high-risk training record
-                {highRiskOverdueCount === 1 ? " is" : "s are"} overdue and
-                should be escalated.
+                {metrics.highRiskOverdueRecords.length} high-risk training record
+                {metrics.highRiskOverdueRecords.length === 1 ? " is" : "s are"}{" "}
+                overdue and should be escalated.
               </p>
             </div>
           </div>

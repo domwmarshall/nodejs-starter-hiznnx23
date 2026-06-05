@@ -11,71 +11,53 @@ import { Badge } from "../components/Badge";
 import { MetricCard } from "../components/MetricCard";
 import { SectionHeader } from "../components/SectionHeader";
 import { DataTable } from "../components/DataTable";
-import { formatDate, daysUntil, getReviewStatus } from "../utils/dateUtils";
+import { formatDate } from "../utils/dateUtils";
+
+import { policies } from "../data/compliance";
 
 import {
-  policies,
-  staffPolicyAcknowledgements,
-  policyQuestionExamples,
-} from "../data/compliance";
+  enrichPolicies,
+  filterPolicies,
+  getComplianceMetrics,
+  getPolicyAcknowledgements,
+  getPolicyById,
+  getPolicyQuestions,
+} from "../services/complianceService";
 
 export function CompliancePage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [selectedPolicyId, setSelectedPolicyId] = useState(policies[0].id);
 
-  const enrichedPolicies = useMemo(
-    () =>
-      policies.map((policy) => ({
-        ...policy,
-        computedStatus: getReviewStatus(policy.reviewDue, policy.status),
-        daysUntilReview: daysUntil(policy.reviewDue),
-      })),
-    []
+  const enrichedPolicies = useMemo(() => enrichPolicies(policies), []);
+
+  const filteredPolicies = useMemo(
+    () => filterPolicies(enrichedPolicies, searchTerm, statusFilter),
+    [enrichedPolicies, searchTerm, statusFilter]
   );
 
-  const filteredPolicies = enrichedPolicies.filter((policy) => {
-    const searchText =
-      `${policy.name} ${policy.category} ${policy.owner} ${policy.summary}`.toLowerCase();
-
-    const matchesSearch = searchText.includes(searchTerm.toLowerCase());
-    const matchesStatus =
-      statusFilter === "All" || policy.computedStatus === statusFilter;
-
-    return matchesSearch && matchesStatus;
-  });
-
-  const selectedPolicy =
-    enrichedPolicies.find((policy) => policy.id === selectedPolicyId) ||
-    enrichedPolicies[0];
-
-  const selectedAcknowledgements = staffPolicyAcknowledgements.filter(
-    (item) => item.policyId === selectedPolicy.id
+  const selectedPolicy = useMemo(
+    () => getPolicyById(policies, selectedPolicyId),
+    [selectedPolicyId]
   );
 
-  const selectedQuestions = policyQuestionExamples.filter(
-    (question) => question.policyId === selectedPolicy.id
+  const metrics = useMemo(() => getComplianceMetrics(policies), []);
+
+  const selectedAcknowledgements = useMemo(
+    () => getPolicyAcknowledgements(selectedPolicy.id),
+    [selectedPolicy.id]
   );
 
-  const overdueCount = enrichedPolicies.filter(
-    (policy) => policy.computedStatus === "Overdue"
-  ).length;
-
-  const dueSoonCount = enrichedPolicies.filter(
-    (policy) => policy.computedStatus === "Due soon"
-  ).length;
-
-  const averageAcknowledgement = Math.round(
-    enrichedPolicies.reduce((total, policy) => total + policy.acknowledgement, 0) /
-      enrichedPolicies.length
+  const selectedQuestions = useMemo(
+    () => getPolicyQuestions(selectedPolicy.id),
+    [selectedPolicy.id]
   );
 
   return (
     <>
       <SectionHeader eyebrow="Compliance" title="Policy & SOP hub">
         Policies, SOPs, acknowledgements, questionnaires, review dates and owner
-        reminders. This is still mock data, but the workflow is now closer to the
-        finished app.
+        reminders. Compliance logic now runs through the service layer.
       </SectionHeader>
 
       <section className="metric-grid">
@@ -87,19 +69,19 @@ export function CompliancePage() {
         />
         <MetricCard
           title="Due soon"
-          value={dueSoonCount}
+          value={metrics.dueSoonPolicies.length}
           detail="Need owner review"
           icon={Clock}
         />
         <MetricCard
           title="Overdue"
-          value={overdueCount}
+          value={metrics.overduePolicies.length}
           detail="Requires escalation"
           icon={AlertTriangle}
         />
         <MetricCard
           title="Acknowledgement"
-          value={`${averageAcknowledgement}%`}
+          value={`${metrics.averageAcknowledgement}%`}
           detail="Average staff completion"
           icon={CheckCircle2}
         />
@@ -148,6 +130,8 @@ export function CompliancePage() {
               { key: "risk", label: "Risk" },
             ]}
             rows={filteredPolicies}
+            emptyTitle="No policies found"
+            emptyMessage="Try clearing the search box or changing the status filter."
             renderCell={(row, key) => {
               if (key === "name") {
                 return (
@@ -178,7 +162,9 @@ export function CompliancePage() {
               }
 
               if (key === "computedStatus" || key === "risk") {
-                return <Badge>{key === "risk" ? `${row.risk} risk` : row[key]}</Badge>;
+                return (
+                  <Badge>{key === "risk" ? `${row.risk} risk` : row[key]}</Badge>
+                );
               }
 
               return row[key];
@@ -276,6 +262,8 @@ export function CompliancePage() {
               { key: "date", label: "Date" },
             ]}
             rows={selectedAcknowledgements}
+            emptyTitle="No acknowledgements"
+            emptyMessage="No staff acknowledgement records exist for this policy yet."
             renderCell={(row, key) => {
               if (key === "staffName") return <strong>{row.staffName}</strong>;
               if (key === "status") return <Badge>{row.status}</Badge>;
@@ -292,26 +280,18 @@ export function CompliancePage() {
         </SectionHeader>
 
         <div className="governance-alert-grid">
-          {enrichedPolicies
-            .filter(
-              (policy) =>
-                policy.computedStatus === "Overdue" ||
-                policy.computedStatus === "Due soon" ||
-                policy.acknowledgement < 90 ||
-                policy.risk === "High"
-            )
-            .map((policy) => (
-              <div className="governance-alert" key={policy.id}>
-                <div>
-                  <strong>{policy.name}</strong>
-                  <span>
-                    {policy.computedStatus} · {policy.acknowledgement}%
-                    acknowledged · {policy.risk} risk
-                  </span>
-                </div>
-                <Badge>{policy.computedStatus}</Badge>
+          {metrics.governanceAlerts.map((policy) => (
+            <div className="governance-alert" key={policy.id}>
+              <div>
+                <strong>{policy.name}</strong>
+                <span>
+                  {policy.computedStatus} · {policy.acknowledgement}%
+                  acknowledged · {policy.risk} risk
+                </span>
               </div>
-            ))}
+              <Badge>{policy.computedStatus}</Badge>
+            </div>
+          ))}
         </div>
       </section>
     </>

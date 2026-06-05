@@ -80,7 +80,7 @@ export const moduleSettings = [
   {
     id: "care-navigation",
     name: "Care Navigation",
-    enabled: false,
+    enabled: true,
     dataRisk: "High",
     governanceStatus: "Clinical governance required",
     description: "Reception call documentation, red-flag prompts and SystmOne notes.",

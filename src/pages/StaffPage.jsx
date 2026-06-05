@@ -1,148 +1,165 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   AlertTriangle,
   CalendarDays,
   CheckCircle2,
   Clock,
+  UserPlus,
+  Users,
 } from "lucide-react";
 
 import { Badge } from "../components/Badge";
 import { MetricCard } from "../components/MetricCard";
 import { SectionHeader } from "../components/SectionHeader";
 import { DataTable } from "../components/DataTable";
+import { formatDate } from "../utils/dateUtils";
 
 import { staff } from "../data/staff";
 
+import {
+  createHolidayRequest,
+  getHolidayRequestMetrics,
+  getRequestsForStaff,
+  getSelectedStaffProfile,
+  getStaffDisplayName,
+  getStaffEntitlement,
+  getStaffHours,
+  getStaffRole,
+  getStaffSummaryRows,
+} from "../services/staffService";
+
 export function StaffPage({
-  holidayRequests,
+  holidayRequests = [],
   addHolidayRequest,
   updateHolidayRequestStatus,
 }) {
-  const [selectedStaffName, setSelectedStaffName] = useState(staff[0].name);
-  const [requestedHours, setRequestedHours] = useState(7.5);
-  const [requestDate, setRequestDate] = useState("2026-07-15");
-  const [requestReason, setRequestReason] = useState("Annual leave");
+  const [selectedStaffName, setSelectedStaffName] = useState(
+    getStaffDisplayName(staff[0])
+  );
 
-  const selectedStaff =
-    staff.find((person) => person.name === selectedStaffName) || staff[0];
+  const [newRequestStaffName, setNewRequestStaffName] = useState(
+    getStaffDisplayName(staff[0])
+  );
+  const [newRequestDate, setNewRequestDate] = useState("2026-07-15");
+  const [newRequestHours, setNewRequestHours] = useState(7.5);
+  const [newRequestReason, setNewRequestReason] = useState("Annual leave");
 
-  const approvedHoursForSelectedStaff = holidayRequests
-    .filter(
-      (request) =>
-        request.staffName === selectedStaff.name && request.status === "Approved"
-    )
-    .reduce((total, request) => total + Number(request.hours), 0);
+  const selectedStaff = useMemo(
+    () => getSelectedStaffProfile(staff, selectedStaffName),
+    [selectedStaffName]
+  );
 
-  const adjustedHolidayRemaining = Math.max(
-    selectedStaff.holidayRemaining - approvedHoursForSelectedStaff,
+  const selectedStaffRequests = useMemo(
+    () => getRequestsForStaff(holidayRequests, selectedStaffName),
+    [holidayRequests, selectedStaffName]
+  );
+
+  const staffSummaryRows = useMemo(
+    () => getStaffSummaryRows(staff, holidayRequests),
+    [holidayRequests]
+  );
+
+  const metrics = useMemo(
+    () => getHolidayRequestMetrics(holidayRequests),
+    [holidayRequests]
+  );
+
+  const selectedStaffEntitlement = getStaffEntitlement(selectedStaff);
+  const selectedApprovedHours = selectedStaffRequests
+    .filter((request) => request.status === "Approved")
+    .reduce((total, request) => total + Number(request.hours || 0), 0);
+
+  const selectedPendingHours = selectedStaffRequests
+    .filter((request) => request.status === "Pending")
+    .reduce((total, request) => total + Number(request.hours || 0), 0);
+
+  const selectedRemainingHours = Math.max(
+    selectedStaffEntitlement - selectedApprovedHours,
     0
   );
 
-  const remainingAfterRequest = Math.max(
-    adjustedHolidayRemaining - Number(requestedHours || 0),
-    0
-  );
-
-  const holidayUsed =
-    selectedStaff.holidayEntitlement - adjustedHolidayRemaining;
-
-  const holidayUsedPercent = Math.round(
-    (holidayUsed / selectedStaff.holidayEntitlement) * 100
-  );
-
-  const holidayRemainingPercent = Math.round(
-    (adjustedHolidayRemaining / selectedStaff.holidayEntitlement) * 100
-  );
-
-  const pendingRequests = holidayRequests.filter(
-    (request) => request.status === "Pending"
-  ).length;
-
-  const approvedRequests = holidayRequests.filter(
-    (request) => request.status === "Approved"
-  ).length;
-
-  const rejectedRequests = holidayRequests.filter(
-    (request) => request.status === "Rejected"
-  ).length;
+  const selectedProgress =
+    selectedStaffEntitlement > 0
+      ? Math.min((selectedApprovedHours / selectedStaffEntitlement) * 100, 100)
+      : 0;
 
   function submitHolidayRequest(event) {
     event.preventDefault();
 
-    if (!requestDate || Number(requestedHours) <= 0) {
-      alert("Please enter a date and a number of hours above zero.");
+    if (!newRequestStaffName || !newRequestDate || !newRequestHours) {
+      alert("Please complete staff member, date and hours.");
       return;
     }
 
-    const newRequest = {
-      id: Date.now(),
-      staffName: selectedStaff.name,
-      date: requestDate,
-      hours: Number(requestedHours),
-      reason: requestReason || "Annual leave",
-      status: "Pending",
-    };
+    const newRequest = createHolidayRequest({
+      staffName: newRequestStaffName,
+      date: newRequestDate,
+      hours: newRequestHours,
+      reason: newRequestReason,
+    });
 
     addHolidayRequest(newRequest);
+    setSelectedStaffName(newRequestStaffName);
+    setNewRequestReason("Annual leave");
   }
 
   return (
     <>
-      <SectionHeader eyebrow="Staff" title="Staff profiles">
-        Staff profiles hold roles, teams, working patterns, holiday balances, pay
-        type, budget allocation, room preferences and management-only HR settings.
+      <SectionHeader eyebrow="Staff" title="Staff, leave and availability">
+        Staff profiles, holiday requests and leave approval workflow. Leave logic
+        now runs through the staff service layer.
       </SectionHeader>
 
       <section className="metric-grid">
         <MetricCard
-          title="Staff configured"
+          title="Staff profiles"
           value={staff.length}
-          detail="Mock users in current prototype"
-          icon={CalendarDays}
+          detail="Mock staff records"
+          icon={Users}
         />
         <MetricCard
           title="Pending leave"
-          value={pendingRequests}
-          detail="Awaiting management decision"
+          value={metrics.pendingRequests.length}
+          detail={`${metrics.totalPendingHours} pending hours`}
           icon={Clock}
         />
         <MetricCard
           title="Approved leave"
-          value={approvedRequests}
-          detail="Approved mock requests"
+          value={metrics.approvedRequests.length}
+          detail={`${metrics.totalApprovedHours} approved hours`}
           icon={CheckCircle2}
         />
         <MetricCard
-          title="Rejected leave"
-          value={rejectedRequests}
-          detail="Rejected mock requests"
+          title="Rejected"
+          value={metrics.rejectedRequests.length}
+          detail="Rejected requests"
           icon={AlertTriangle}
         />
       </section>
 
       <section className="content-grid">
         <div className="panel panel-large">
-          <SectionHeader eyebrow="Staff list" title="People">
-            Click a staff member to view their role, holiday, room and management
-            settings.
+          <SectionHeader eyebrow="Staff list" title="Team overview">
+            Select a staff member to view their leave position and requests.
           </SectionHeader>
 
           <DataTable
             columns={[
-              { key: "name", label: "Name" },
+              { key: "name", label: "Staff member" },
               { key: "role", label: "Role" },
               { key: "team", label: "Team" },
-              { key: "pattern", label: "Pattern" },
-              { key: "holiday", label: "Holiday remaining" },
-              { key: "payType", label: "Pay type" },
-              { key: "budget", label: "Budget" },
-              { key: "training", label: "Training" },
+              { key: "contractedHours", label: "Hours" },
+              { key: "entitlementHours", label: "Entitlement" },
+              { key: "approvedHours", label: "Approved" },
+              { key: "pendingHours", label: "Pending" },
+              { key: "remainingHours", label: "Remaining" },
             ]}
-            rows={staff}
+            rows={staffSummaryRows}
             renderCell={(row, key) => {
               if (key === "name") {
                 return (
                   <button
+                    type="button"
                     className="text-button"
                     onClick={() => setSelectedStaffName(row.name)}
                   >
@@ -151,22 +168,18 @@ export function StaffPage({
                 );
               }
 
-              if (key === "holiday") {
-                const approvedHours = holidayRequests
-                  .filter(
-                    (request) =>
-                      request.staffName === row.name &&
-                      request.status === "Approved"
-                  )
-                  .reduce((total, request) => total + Number(request.hours), 0);
-
-                return `${Math.max(row.holidayRemaining - approvedHours, 0)} / ${
-                  row.holidayEntitlement
-                } hrs`;
+              if (key === "role" || key === "team") {
+                return <Badge>{row[key]}</Badge>;
               }
 
-              if (key === "training") {
-                return <Badge>{row.training}</Badge>;
+              if (
+                key === "contractedHours" ||
+                key === "entitlementHours" ||
+                key === "approvedHours" ||
+                key === "pendingHours" ||
+                key === "remainingHours"
+              ) {
+                return `${row[key]} hrs`;
               }
 
               return row[key];
@@ -175,104 +188,136 @@ export function StaffPage({
         </div>
 
         <aside className="panel staff-detail-panel">
-          <SectionHeader eyebrow="Selected profile" title={selectedStaff.name}>
-            {selectedStaff.role}
+          <SectionHeader eyebrow="Selected staff" title={getStaffDisplayName(selectedStaff)}>
+            Current mock staff profile and annual leave position.
           </SectionHeader>
 
           <div className="profile-card">
             <div>
-              <span>Team</span>
-              <strong>{selectedStaff.team}</strong>
+              <span>Role</span>
+              <strong>{getStaffRole(selectedStaff)}</strong>
             </div>
             <div>
-              <span>Working pattern</span>
-              <strong>{selectedStaff.pattern}</strong>
+              <span>Contracted hours</span>
+              <strong>{getStaffHours(selectedStaff)} hrs/week</strong>
             </div>
             <div>
-              <span>Primary room</span>
-              <strong>{selectedStaff.room}</strong>
+              <span>Holiday entitlement</span>
+              <strong>{selectedStaffEntitlement} hrs</strong>
             </div>
             <div>
-              <span>Pay type</span>
-              <strong>{selectedStaff.payType}</strong>
+              <span>Approved leave</span>
+              <strong>{selectedApprovedHours} hrs</strong>
             </div>
             <div>
-              <span>Budget allocation</span>
-              <strong>{selectedStaff.budget}</strong>
+              <span>Pending leave</span>
+              <strong>{selectedPendingHours} hrs</strong>
             </div>
             <div>
-              <span>Training</span>
-              <Badge>{selectedStaff.training}</Badge>
+              <span>Remaining</span>
+              <strong>{selectedRemainingHours} hrs</strong>
+            </div>
+          </div>
+
+          <div className="progress-section">
+            <div className="progress-label">
+              <span>Leave used</span>
+              <strong>{Math.round(selectedProgress)}%</strong>
+            </div>
+            <div className="progress-track">
+              <div
+                className="progress-fill progress-fill-green"
+                style={{ width: `${selectedProgress}%` }}
+              />
             </div>
           </div>
         </aside>
       </section>
 
       <section className="content-grid">
-        <div className="panel panel-large">
-          <SectionHeader eyebrow="Holiday" title="Holiday entitlement calculator">
-            Approved requests now reduce the holiday balance and also appear on
-            the Calendar page.
+        <div className="panel">
+          <SectionHeader eyebrow="Leave requests" title="Request queue">
+            Approve, reject or reopen leave requests. These requests persist in
+            browser localStorage.
           </SectionHeader>
 
-          <div className="holiday-summary-grid">
-            <div className="holiday-box">
-              <span>Entitlement</span>
-              <strong>{selectedStaff.holidayEntitlement} hrs</strong>
-            </div>
-            <div className="holiday-box">
-              <span>Used</span>
-              <strong>{holidayUsed} hrs</strong>
-            </div>
-            <div className="holiday-box">
-              <span>Remaining</span>
-              <strong>{adjustedHolidayRemaining} hrs</strong>
-            </div>
-            <div className="holiday-box">
-              <span>Remaining after request</span>
-              <strong>{remainingAfterRequest} hrs</strong>
-            </div>
-          </div>
+          <DataTable
+            columns={[
+              { key: "staffName", label: "Staff member" },
+              { key: "date", label: "Date" },
+              { key: "hours", label: "Hours" },
+              { key: "reason", label: "Reason" },
+              { key: "status", label: "Status" },
+              { key: "actions", label: "Actions" },
+            ]}
+            rows={holidayRequests}
+            emptyTitle="No leave requests"
+            emptyMessage="Create a leave request using the form on this page."
+            renderCell={(row, key) => {
+              if (key === "staffName") return <strong>{row.staffName}</strong>;
+              if (key === "date") return formatDate(row.date);
+              if (key === "hours") return `${row.hours} hrs`;
+              if (key === "status") return <Badge>{row.status}</Badge>;
 
-          <div className="progress-section">
-            <div className="progress-label">
-              <span>Holiday used</span>
-              <strong>{holidayUsedPercent}%</strong>
-            </div>
-            <div className="progress-track">
-              <div
-                className="progress-fill"
-                style={{ width: `${holidayUsedPercent}%` }}
-              />
-            </div>
-          </div>
+              if (key === "actions") {
+                return (
+                  <div className="action-buttons">
+                    <button
+                      type="button"
+                      className="small-button approve-button"
+                      onClick={() =>
+                        updateHolidayRequestStatus(row.id, "Approved")
+                      }
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      className="small-button reject-button"
+                      onClick={() =>
+                        updateHolidayRequestStatus(row.id, "Rejected")
+                      }
+                    >
+                      Reject
+                    </button>
+                    <button
+                      type="button"
+                      className="small-button settings-toggle-button"
+                      onClick={() =>
+                        updateHolidayRequestStatus(row.id, "Pending")
+                      }
+                    >
+                      Reopen
+                    </button>
+                  </div>
+                );
+              }
 
-          <div className="progress-section">
-            <div className="progress-label">
-              <span>Holiday remaining</span>
-              <strong>{holidayRemainingPercent}%</strong>
-            </div>
-            <div className="progress-track">
-              <div
-                className="progress-fill progress-fill-green"
-                style={{ width: `${holidayRemainingPercent}%` }}
-              />
-            </div>
-          </div>
+              return row[key];
+            }}
+          />
+        </div>
+
+        <div className="panel">
+          <SectionHeader eyebrow="New request" title="Add leave request">
+            Create a mock leave request. This does not check rota safety yet.
+          </SectionHeader>
 
           <form className="holiday-request-form" onSubmit={submitHolidayRequest}>
-            <h3>Submit mock holiday request</h3>
+            <h3>
+              <UserPlus size={20} /> New leave request
+            </h3>
 
             <div className="form-grid">
               <label>
                 Staff member
                 <select
-                  value={selectedStaffName}
-                  onChange={(event) => setSelectedStaffName(event.target.value)}
+                  value={newRequestStaffName}
+                  onChange={(event) => setNewRequestStaffName(event.target.value)}
                 >
                   {staff.map((person) => (
-                    <option key={person.name} value={person.name}>
-                      {person.name}
+                    <option key={getStaffDisplayName(person)}>
+                      {getStaffDisplayName(person)}
                     </option>
                   ))}
                 </select>
@@ -282,128 +327,68 @@ export function StaffPage({
                 Date
                 <input
                   type="date"
-                  value={requestDate}
-                  onChange={(event) => setRequestDate(event.target.value)}
+                  value={newRequestDate}
+                  onChange={(event) => setNewRequestDate(event.target.value)}
                 />
               </label>
 
               <label>
-                Hours requested
+                Hours
                 <input
                   type="number"
                   min="0"
                   step="0.5"
-                  value={requestedHours}
-                  onChange={(event) => setRequestedHours(event.target.value)}
+                  value={newRequestHours}
+                  onChange={(event) => setNewRequestHours(event.target.value)}
                 />
               </label>
 
               <label>
                 Reason
                 <select
-                  value={requestReason}
-                  onChange={(event) => setRequestReason(event.target.value)}
+                  value={newRequestReason}
+                  onChange={(event) => setNewRequestReason(event.target.value)}
                 >
                   <option>Annual leave</option>
                   <option>Medical appointment</option>
-                  <option>Family emergency</option>
                   <option>Unpaid leave</option>
+                  <option>Training</option>
                   <option>Other</option>
                 </select>
               </label>
             </div>
 
-            <div className="request-preview">
-              If approved, <strong>{selectedStaff.name}</strong> would have{" "}
-              <strong>{remainingAfterRequest} hours</strong> remaining.
-            </div>
+            <p className="request-preview">
+              Preview: {newRequestStaffName} · {formatDate(newRequestDate)} ·{" "}
+              {newRequestHours} hrs · {newRequestReason}
+            </p>
 
-            <button className="primary-button" type="submit">
-              Submit mock request
+            <button type="submit" className="primary-button">
+              Add leave request
             </button>
           </form>
         </div>
-
-        <aside className="panel">
-          <SectionHeader eyebrow="Management" title="Contract amendments">
-            Future contract changes will recalculate entitlement automatically.
-          </SectionHeader>
-
-          <div className="amendment-list">
-            <div>
-              <strong>Current working pattern</strong>
-              <span>{selectedStaff.pattern}</span>
-            </div>
-            <div>
-              <strong>Holiday year</strong>
-              <span>1 April to 31 March</span>
-            </div>
-            <div>
-              <strong>Bank holiday handling</strong>
-              <span>Planned setting</span>
-            </div>
-            <div>
-              <strong>Mid-year amendments</strong>
-              <span>Planned</span>
-            </div>
-          </div>
-
-          <div className="blue-box">
-            <strong>Example future logic</strong>
-            <p>
-              If a staff member drops a working day mid-year, GPOP will store a
-              contract amendment and recalculate entitlement from the effective date.
-            </p>
-          </div>
-        </aside>
       </section>
 
       <section className="panel">
-        <SectionHeader eyebrow="Leave requests" title="Management approval queue">
-          Approving a request now makes it visible on the Calendar page as staff
-          absence.
+        <SectionHeader eyebrow="Selected staff" title="Leave history">
+          Leave records linked to the currently selected staff member.
         </SectionHeader>
 
         <DataTable
           columns={[
-            { key: "staffName", label: "Staff member" },
             { key: "date", label: "Date" },
             { key: "hours", label: "Hours" },
             { key: "reason", label: "Reason" },
             { key: "status", label: "Status" },
-            { key: "actions", label: "Actions" },
           ]}
-          rows={holidayRequests}
+          rows={selectedStaffRequests}
+          emptyTitle="No leave history"
+          emptyMessage="This staff member has no leave requests recorded yet."
           renderCell={(row, key) => {
-            if (key === "staffName") return <strong>{row.staffName}</strong>;
+            if (key === "date") return formatDate(row.date);
+            if (key === "hours") return `${row.hours} hrs`;
             if (key === "status") return <Badge>{row.status}</Badge>;
-
-            if (key === "actions") {
-              if (row.status !== "Pending") {
-                return <span className="muted-text">No action needed</span>;
-              }
-
-              return (
-                <div className="action-buttons">
-                  <button
-                    type="button"
-                    className="small-button approve-button"
-                    onClick={() => updateHolidayRequestStatus(row.id, "Approved")}
-                  >
-                    Approve
-                  </button>
-
-                  <button
-                    type="button"
-                    className="small-button reject-button"
-                    onClick={() => updateHolidayRequestStatus(row.id, "Rejected")}
-                  >
-                    Reject
-                  </button>
-                </div>
-              );
-            }
-
             return row[key];
           }}
         />

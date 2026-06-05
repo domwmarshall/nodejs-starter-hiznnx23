@@ -1,161 +1,143 @@
-import {
-  AlertTriangle,
-  CalendarDays,
-  Clock,
-  DoorOpen,
-  UserCog,
-} from "lucide-react";
+import { useMemo } from "react";
+import { CalendarDays, CheckCircle2, Clock, Users } from "lucide-react";
 
 import { Badge } from "../components/Badge";
 import { MetricCard } from "../components/MetricCard";
 import { SectionHeader } from "../components/SectionHeader";
 import { DataTable } from "../components/DataTable";
 
-import { calendarRows } from "../data/calendar";
-import { staff } from "../data/staff";
+import {
+  getApprovedLeaveForDate,
+  getHolidayRequestMetrics,
+  getLeaveCalendarRows,
+} from "../services/staffService";
 
-function getDayNameFromDate(dateString) {
-  const date = new Date(dateString + "T12:00:00");
-  return date.toLocaleDateString("en-GB", { weekday: "long" });
-}
+const mockWeekDays = [
+  {
+    label: "Monday",
+    date: "2026-07-01",
+    requiredCover: "GP, nurse, reception, dispensary",
+  },
+  {
+    label: "Tuesday",
+    date: "2026-07-02",
+    requiredCover: "GP AM, reception, dispensary",
+  },
+  {
+    label: "Wednesday",
+    date: "2026-07-03",
+    requiredCover: "GP, HCA, reception, dispensary",
+  },
+  {
+    label: "Thursday",
+    date: "2026-07-04",
+    requiredCover: "GP, nurse, reception, dispensary",
+  },
+  {
+    label: "Friday",
+    date: "2026-07-05",
+    requiredCover: "ANP/GP, reception, dispensary",
+  },
+];
 
-export function CalendarPage({ holidayRequests }) {
-  const approvedHolidayRequests = holidayRequests.filter(
-    (request) => request.status === "Approved"
+export function CalendarPage({ holidayRequests = [] }) {
+  const metrics = useMemo(
+    () => getHolidayRequestMetrics(holidayRequests),
+    [holidayRequests]
   );
 
-  const pendingHolidayRequests = holidayRequests.filter(
-    (request) => request.status === "Pending"
+  const leaveCalendarRows = useMemo(
+    () => getLeaveCalendarRows(holidayRequests),
+    [holidayRequests]
   );
 
-  const weeklyAbsences = approvedHolidayRequests.map((request) => {
-    const staffMember = staff.find((person) => person.name === request.staffName);
+  const weekRows = useMemo(
+    () =>
+      mockWeekDays.map((day) => {
+        const approvedLeave = getApprovedLeaveForDate(holidayRequests, day.date);
 
-    return {
-      ...request,
-      day: getDayNameFromDate(request.date),
-      role: staffMember?.role || "Unknown role",
-      team: staffMember?.team || "Unknown team",
-    };
-  });
-
-  const calendarWithAbsence = calendarRows.map((row) => {
-    const absencesForDay = weeklyAbsences.filter(
-      (absence) => absence.day === row.day
-    );
-
-    const absentNames = absencesForDay.map((absence) => absence.staffName);
-
-    const issueList = [];
-
-    if (row.issue !== "None") {
-      issueList.push(row.issue);
-    }
-
-    if (absentNames.includes(row.dutyDoctor)) {
-      issueList.push("Duty doctor absent");
-    }
-
-    if (absentNames.includes(row.nurse)) {
-      issueList.push("Nurse absent");
-    }
-
-    if (absentNames.includes(row.reception)) {
-      issueList.push("Reception cover absent");
-    }
-
-    if (absentNames.includes(row.dispenser)) {
-      issueList.push("Dispensary cover absent");
-    }
-
-    return {
-      ...row,
-      absences:
-        absencesForDay.length > 0
-          ? absencesForDay.map((absence) => absence.staffName).join(", ")
-          : "None",
-      issue: issueList.length > 0 ? issueList.join(", ") : "None",
-    };
-  });
-
-  const rowsWithIssues = calendarWithAbsence.filter(
-    (row) => row.issue !== "None"
-  ).length;
-
-  const clinicalCoverWarnings = calendarWithAbsence.filter((row) =>
-    row.issue.toLowerCase().includes("doctor")
-  ).length;
+        return {
+          ...day,
+          approvedLeave,
+          leaveCount: approvedLeave.length,
+          coverStatus:
+            approvedLeave.length > 0 ? "Check cover" : "No approved leave",
+        };
+      }),
+    [holidayRequests]
+  );
 
   return (
     <>
-      <SectionHeader eyebrow="Calendar / Workforce" title="Workforce calendar">
-        Approved holiday requests from the Staff module now appear here as
-        absences and can create rota warnings.
+      <SectionHeader eyebrow="Calendar" title="Calendar and leave overlay">
+        Prototype calendar view showing approved leave against a mock practice
+        week. This is not a full rota engine yet.
       </SectionHeader>
 
       <section className="metric-grid">
         <MetricCard
-          title="Missing shifts"
-          value={rowsWithIssues}
-          detail="Calendar rows with warnings"
-          icon={CalendarDays}
-        />
-        <MetricCard
-          title="Approved absences"
-          value={approvedHolidayRequests.length}
-          detail="Visible in this calendar"
-          icon={Clock}
+          title="Approved leave"
+          value={metrics.approvedRequests.length}
+          detail={`${metrics.totalApprovedHours} approved hours`}
+          icon={CheckCircle2}
         />
         <MetricCard
           title="Pending leave"
-          value={pendingHolidayRequests.length}
-          detail="Awaiting management approval"
-          icon={UserCog}
+          value={metrics.pendingRequests.length}
+          detail={`${metrics.totalPendingHours} pending hours`}
+          icon={Clock}
         />
         <MetricCard
-          title="Clinical warnings"
-          value={clinicalCoverWarnings}
-          detail="Doctor cover affected"
-          icon={AlertTriangle}
+          title="Rejected"
+          value={metrics.rejectedRequests.length}
+          detail="Rejected requests"
+          icon={Users}
+        />
+        <MetricCard
+          title="Calendar mode"
+          value="Mock"
+          detail="No database-backed rota yet"
+          icon={CalendarDays}
         />
       </section>
 
       <section className="content-grid">
         <div className="panel panel-large">
-          <SectionHeader eyebrow="This week" title="Rota with absences">
-            Approved leave is checked against duty doctor, nurse, reception and
-            dispensary cover.
+          <SectionHeader eyebrow="Week view" title="Mock rota week">
+            Approved leave is shown against each mock day. Later this needs a
+            proper rota model, appointment capacity rules and cover logic.
           </SectionHeader>
 
           <DataTable
             columns={[
-              { key: "day", label: "Day" },
-              { key: "dutyDoctor", label: "Duty doctor" },
-              { key: "nurse", label: "Nurse" },
-              { key: "reception", label: "Reception" },
-              { key: "dispenser", label: "Dispensary" },
-              { key: "absences", label: "Approved absences" },
-              { key: "rooms", label: "Rooms" },
-              { key: "issue", label: "Issue" },
+              { key: "label", label: "Day" },
+              { key: "date", label: "Date" },
+              { key: "requiredCover", label: "Required cover" },
+              { key: "approvedLeave", label: "Approved leave" },
+              { key: "coverStatus", label: "Cover status" },
             ]}
-            rows={calendarWithAbsence}
+            rows={weekRows}
             renderCell={(row, key) => {
-              if (key === "day") return <strong>{row.day}</strong>;
+              if (key === "label") return <strong>{row.label}</strong>;
 
-              if (key === "issue") {
-                return <Badge>{row.issue}</Badge>;
+              if (key === "approvedLeave") {
+                if (row.approvedLeave.length === 0) {
+                  return <span className="muted-text">None</span>;
+                }
+
+                return (
+                  <div className="stacked-cell">
+                    {row.approvedLeave.map((leave) => (
+                      <span key={leave.id}>
+                        {leave.staffName} · {leave.hours} hrs
+                      </span>
+                    ))}
+                  </div>
+                );
               }
 
-              if (key === "absences") {
-                return <Badge>{row.absences}</Badge>;
-              }
-
-              if (
-                row[key] === "Unfilled" ||
-                row[key] === "Locum needed" ||
-                row.issue.includes(`${row[key]} absent`)
-              ) {
-                return <Badge>{row[key]}</Badge>;
+              if (key === "coverStatus") {
+                return <Badge>{row.coverStatus}</Badge>;
               }
 
               return row[key];
@@ -164,50 +146,59 @@ export function CalendarPage({ holidayRequests }) {
         </div>
 
         <aside className="panel">
-          <SectionHeader eyebrow="Absence summary" title="Approved leave">
-            These are pulled directly from the Staff holiday approval queue.
+          <SectionHeader eyebrow="Calendar warning" title="Not a rota engine yet">
+            This page should stay simple until we build a proper rota and absence
+            data model.
           </SectionHeader>
 
-          <div className="absence-list">
-            {weeklyAbsences.length === 0 ? (
-              <div className="absence-item">
-                <strong>No approved absences</strong>
-                <span>Approve a holiday request in Staff to see it here.</span>
-              </div>
-            ) : (
-              weeklyAbsences.map((absence) => (
-                <div className="absence-item" key={absence.id}>
-                  <strong>{absence.staffName}</strong>
-                  <span>
-                    {absence.day} · {absence.date} · {absence.hours} hrs
-                  </span>
-                  <span>
-                    {absence.role} · {absence.team}
-                  </span>
-                  <Badge>{absence.reason}</Badge>
-                </div>
-              ))
-            )}
+          <div className="danger-banner settings-danger">
+            <CalendarDays size={22} />
+            <div>
+              <strong>Calendar logic is placeholder only</strong>
+              <p>
+                This does not yet check GP/nurse capacity, duplicate leave,
+                appointment slot safety, blood collection times or required
+                dispensary cover.
+              </p>
+            </div>
+          </div>
+
+          <div className="settings-mini-list">
+            <div>
+              <CheckCircle2 size={18} />
+              <span>Approved leave overlay works</span>
+            </div>
+            <div>
+              <Clock size={18} />
+              <span>Rota rules planned for later</span>
+            </div>
+            <div>
+              <Users size={18} />
+              <span>Cover checking not active yet</span>
+            </div>
           </div>
         </aside>
       </section>
 
       <section className="panel">
-        <SectionHeader eyebrow="Pending leave" title="Requests awaiting approval">
-          These do not affect the rota until approved by management.
+        <SectionHeader eyebrow="Leave list" title="All leave requests">
+          This list is shared with the Staff page through the staff service layer.
         </SectionHeader>
 
         <DataTable
           columns={[
+            { key: "formattedDate", label: "Date" },
             { key: "staffName", label: "Staff member" },
-            { key: "date", label: "Date" },
             { key: "hours", label: "Hours" },
             { key: "reason", label: "Reason" },
             { key: "status", label: "Status" },
           ]}
-          rows={pendingHolidayRequests}
+          rows={leaveCalendarRows}
+          emptyTitle="No leave requests"
+          emptyMessage="Add leave requests from the Staff page."
           renderCell={(row, key) => {
             if (key === "staffName") return <strong>{row.staffName}</strong>;
+            if (key === "hours") return `${row.hours} hrs`;
             if (key === "status") return <Badge>{row.status}</Badge>;
             return row[key];
           }}

@@ -6,6 +6,8 @@ import {
   Lock,
   ShieldCheck,
   ToggleRight,
+  RotateCcw,
+  Save,
 } from "lucide-react";
 
 import { Badge } from "../components/Badge";
@@ -22,17 +24,38 @@ import {
   reminderSettings,
 } from "../data/settings";
 
-export function SettingsPage() {
-  const [selectedModuleId, setSelectedModuleId] = useState(moduleSettings[0].id);
+import {
+  DEFAULT_APP_CONFIG,
+  SETTINGS_STORAGE_KEYS,
+  clearAllDemoData,
+} from "../services/settingsService";
 
-  const [localModuleSettings, setLocalModuleSettings] = useLocalStorageState(
-    "gpop-module-settings",
-    moduleSettings
+import {
+  AlertBanner,
+  Button,
+  PageHeader,
+} from "../components/ui";
+
+export function SettingsPage({
+  moduleToggleSettings = moduleSettings,
+  setModuleToggleSettings,
+}) {
+  const [selectedModuleId, setSelectedModuleId] = useState(moduleSettings[0].id);
+  const [savedMessage, setSavedMessage] = useState("");
+
+  const [appConfig, setAppConfig] = useLocalStorageState(
+    SETTINGS_STORAGE_KEYS.appConfig,
+    DEFAULT_APP_CONFIG
   );
+
+  const localModuleSettings = Array.isArray(moduleToggleSettings)
+    ? moduleToggleSettings
+    : moduleSettings;
 
   const selectedModule =
     localModuleSettings.find((module) => module.id === selectedModuleId) ||
-    localModuleSettings[0];
+    localModuleSettings[0] ||
+    moduleSettings[0];
 
   const enabledModules = localModuleSettings.filter((module) => module.enabled);
   const disabledModules = localModuleSettings.filter((module) => !module.enabled);
@@ -41,26 +64,63 @@ export function SettingsPage() {
     (item) => item.risk === "High"
   );
 
-  function toggleModule(moduleId) {
-    setLocalModuleSettings((currentModules) =>
-      currentModules.map((module) =>
-        module.id === moduleId
-          ? {
-              ...module,
-              enabled: !module.enabled,
-            }
-          : module
-      )
+  function updateConfigField(fieldName, value) {
+    setAppConfig((currentConfig) => ({
+      ...currentConfig,
+      [fieldName]: value,
+    }));
+
+    setSavedMessage("Changes are saved automatically in this browser.");
+  }
+
+  function resetAppConfig() {
+    const confirmed = window.confirm(
+      "Reset practice profile settings back to the default demo configuration?"
     );
+
+    if (!confirmed) return;
+
+    setAppConfig(DEFAULT_APP_CONFIG);
+    setSavedMessage("Practice profile reset to default demo settings.");
+  }
+
+  function toggleModule(moduleId) {
+    if (typeof setModuleToggleSettings !== "function") {
+      alert(
+        "Module toggles are not connected to App.jsx yet. Check that SettingsPage is being passed setModuleToggleSettings."
+      );
+      return;
+    }
+  
+    const updatedModules = localModuleSettings.map((module) =>
+      module.id === moduleId
+        ? {
+            ...module,
+            enabled: !module.enabled,
+          }
+        : module
+    );
+  
+    setModuleToggleSettings(updatedModules);
+  }
+
+  function resetDemoData() {
+    const confirmed = window.confirm(
+      "Reset all GPOP demo data? This will clear saved holiday requests, inbox statuses, audit submissions, module toggles, finance task statuses and app profile settings from this browser."
+    );
+
+    if (!confirmed) return;
+
+    clearAllDemoData();
+    window.location.reload();
   }
 
   return (
     <>
-      <SectionHeader eyebrow="Settings" title="Admin settings">
-        Practice configuration, module toggles, permissions, reminder rules and
-        production readiness checks. Module toggles now survive refresh using
-        localStorage.
-      </SectionHeader>
+      <PageHeader eyebrow="Settings" title="Admin settings">
+      Practice configuration, module toggles, permissions, reminder rules and
+      production readiness checks.
+      </PageHeader>
 
       <section className="metric-grid">
         <MetricCard
@@ -91,38 +151,154 @@ export function SettingsPage() {
 
       <section className="content-grid">
         <div className="panel panel-large">
-          <SectionHeader eyebrow="Practice profile" title="System configuration">
-            These values will later be saved in the database and controlled by
-            admin users.
+          <SectionHeader eyebrow="Practice profile" title="Editable system configuration">
+            These values are now editable and stored in this browser using
+            localStorage. Later they should move into a real database.
+          </SectionHeader>
+
+          <form className="settings-edit-form">
+            <label>
+              Practice name
+              <input
+                type="text"
+                value={appConfig.practiceName}
+                onChange={(event) =>
+                  updateConfigField("practiceName", event.target.value)
+                }
+              />
+            </label>
+
+            <label>
+              Short system name
+              <input
+                type="text"
+                value={appConfig.systemName}
+                onChange={(event) =>
+                  updateConfigField("systemName", event.target.value)
+                }
+              />
+            </label>
+
+            <label>
+              Full system name
+              <input
+                type="text"
+                value={appConfig.systemFullName}
+                onChange={(event) =>
+                  updateConfigField("systemFullName", event.target.value)
+                }
+              />
+            </label>
+
+            <label>
+              Data mode
+              <select
+                value={appConfig.dataMode}
+                onChange={(event) =>
+                  updateConfigField("dataMode", event.target.value)
+                }
+              >
+                <option>Dummy data only</option>
+                <option>Prototype local data</option>
+                <option>Database planned</option>
+                <option>Production locked</option>
+              </select>
+            </label>
+
+            <label>
+              Holiday year start
+              <input
+                type="text"
+                value={appConfig.holidayYearStart}
+                onChange={(event) =>
+                  updateConfigField("holidayYearStart", event.target.value)
+                }
+              />
+            </label>
+
+            <label>
+              Holiday year end
+              <input
+                type="text"
+                value={appConfig.holidayYearEnd}
+                onChange={(event) =>
+                  updateConfigField("holidayYearEnd", event.target.value)
+                }
+              />
+            </label>
+
+            <label>
+              Admin contact
+              <input
+                type="text"
+                value={appConfig.adminContact}
+                onChange={(event) =>
+                  updateConfigField("adminContact", event.target.value)
+                }
+              />
+            </label>
+
+            <label className="settings-wide-field">
+              Prototype warning text
+              <textarea
+                value={appConfig.prototypeWarning}
+                onChange={(event) =>
+                  updateConfigField("prototypeWarning", event.target.value)
+                }
+              />
+            </label>
+          </form>
+
+          <div className="settings-save-strip">
+            <div>
+              <Save size={18} />
+              <span>
+                {savedMessage ||
+                  "Changes save automatically in this browser as you type."}
+              </span>
+            </div>
+
+            <button
+  type="button"
+  className="secondary-button settings-reset-button"
+  onClick={resetAppConfig}
+>
+  Reset profile
+</button>
+          </div>
+        </div>
+
+        <aside className="panel">
+          <SectionHeader eyebrow="Current profile" title="Live configuration preview">
+            This preview shows the current saved browser configuration.
           </SectionHeader>
 
           <div className="settings-profile-grid">
             <div>
               <span>Practice name</span>
-              <strong>{practiceSettings.practiceName}</strong>
+              <strong>{appConfig.practiceName}</strong>
             </div>
             <div>
               <span>System name</span>
-              <strong>{practiceSettings.systemName}</strong>
+              <strong>{appConfig.systemName}</strong>
             </div>
             <div>
               <span>Full name</span>
-              <strong>{practiceSettings.systemFullName}</strong>
-            </div>
-            <div>
-              <span>Mode</span>
-              <Badge>{practiceSettings.mode}</Badge>
+              <strong>{appConfig.systemFullName}</strong>
             </div>
             <div>
               <span>Data mode</span>
-              <strong>{practiceSettings.dataMode}</strong>
+              <Badge>{appConfig.dataMode}</Badge>
             </div>
             <div>
               <span>Holiday year</span>
               <strong>
-                {practiceSettings.holidayYearStart} to{" "}
-                {practiceSettings.holidayYearEnd}
+                {appConfig.holidayYearStart} to {appConfig.holidayYearEnd}
               </strong>
+            </div>
+            <div>
+              <span>Admin contact</span>
+              <strong>{appConfig.adminContact}</strong>
             </div>
             <div>
               <span>SystmOne connection</span>
@@ -133,24 +309,19 @@ export function SettingsPage() {
               <Badge>{practiceSettings.databaseStatus}</Badge>
             </div>
           </div>
-        </div>
+        </aside>
+      </section>
 
-        <aside className="panel">
+      <section className="content-grid">
+        <div className="panel">
           <SectionHeader eyebrow="Safety" title="Prototype rules">
             These rules should stay visible until the app has proper security,
             governance and hosting.
           </SectionHeader>
 
-          <div className="danger-banner settings-danger">
-            <Lock size={22} />
-            <div>
-              <strong>No patient-identifiable data</strong>
-              <p>
-                This prototype must only use dummy data until authentication,
-                database security, DPIA, audit logging and governance are ready.
-              </p>
-            </div>
-          </div>
+          <AlertBanner tone="danger" title="No patient-identifiable data" icon={Lock}>
+  {appConfig.prototypeWarning}
+</AlertBanner>
 
           <div className="settings-mini-list">
             <div>
@@ -166,14 +337,45 @@ export function SettingsPage() {
               <span>No patient data in uploads</span>
             </div>
           </div>
-        </aside>
+        </div>
+
+        <div className="panel">
+          <SectionHeader eyebrow="Configuration maturity" title="What this means">
+            These settings currently only affect this browser. In the production
+            app, this should be a controlled admin-only configuration area.
+          </SectionHeader>
+
+          <div className="governance-alert-grid">
+            <div className="governance-alert">
+              <div>
+                <strong>Browser-level settings</strong>
+                <span>Current configuration is saved only in localStorage.</span>
+              </div>
+              <Badge>Prototype</Badge>
+            </div>
+            <div className="governance-alert">
+              <div>
+                <strong>Database required</strong>
+                <span>Practice settings should eventually be stored centrally.</span>
+              </div>
+              <Badge>Required</Badge>
+            </div>
+            <div className="governance-alert">
+              <div>
+                <strong>Admin-only access</strong>
+                <span>Only authorised admin users should edit these settings.</span>
+              </div>
+              <Badge>Planned</Badge>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section className="content-grid">
         <div className="panel panel-large">
           <SectionHeader eyebrow="Modules" title="Module toggles">
-            Turn modules on/off in this mock settings area. Toggles now persist
-            after refresh using localStorage.
+            Turn modules on/off in this mock settings area. Toggles now update
+            the sidebar immediately and persist after refresh.
           </SectionHeader>
 
           <DataTable
@@ -327,6 +529,33 @@ export function SettingsPage() {
       </section>
 
       <section className="panel">
+        <SectionHeader eyebrow="Demo data" title="Reset prototype data">
+          Clear saved browser data and reload the app back to the original demo
+          state.
+        </SectionHeader>
+
+        <div className="reset-demo-card">
+          <div>
+            <RotateCcw size={24} />
+          </div>
+
+          <div>
+            <strong>Reset this browser’s demo data</strong>
+            <p>
+              This clears localStorage for GPOP only. It resets holiday requests,
+              inbox statuses, audit submissions, finance task statuses, app
+              profile settings and module toggles. It does not affect any real
+              database because there is no real database connected yet.
+            </p>
+          </div>
+
+          <button type="button" className="danger-button" onClick={resetDemoData}>
+  Reset demo data
+</button>
+        </div>
+      </section>
+
+      <section className="panel">
         <SectionHeader eyebrow="Next technical phase" title="Storage plan">
           This is the planned route from prototype to production-quality app.
         </SectionHeader>
@@ -341,12 +570,12 @@ export function SettingsPage() {
             <span>Current step. Keeps prototype data after refresh.</span>
           </div>
           <div>
-            <strong>3. Local database</strong>
-            <span>SQLite or equivalent during serious development.</span>
+            <strong>3. Service layer</strong>
+            <span>Current architecture step. Keeps pages away from storage details.</span>
           </div>
           <div>
-            <strong>4. Hosted database</strong>
-            <span>PostgreSQL/Supabase/Neon/Azure for multi-user app.</span>
+            <strong>4. API/database layer</strong>
+            <span>Later: Supabase/Postgres, Prisma, or another backend.</span>
           </div>
           <div>
             <strong>5. Production hardening</strong>

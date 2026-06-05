@@ -12,9 +12,22 @@ import { MetricCard } from "../components/MetricCard";
 import { SectionHeader } from "../components/SectionHeader";
 import { DataTable } from "../components/DataTable";
 import { useLocalStorageState } from "../hooks/useLocalStorageState";
-import { formatDate, daysUntil, getDueText } from "../utils/dateUtils";
+import { formatDate } from "../utils/dateUtils";
 
-import { auditTemplates, auditSubmissions } from "../data/audits";
+import { auditTemplates } from "../data/audits";
+
+import {
+  AUDIT_SUBMISSIONS_STORAGE_KEY,
+  addAuditSubmission,
+  createAuditSubmission,
+  enrichAuditTemplates,
+  filterAuditTemplates,
+  getAuditMetrics,
+  getAuditTemplateById,
+  getDefaultAuditSubmissions,
+  getRecentAuditSubmissions,
+  getSubmissionsForTemplate,
+} from "../services/auditService";
 
 export function AuditsPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -27,68 +40,53 @@ export function AuditsPage() {
   const [actionRequired, setActionRequired] = useState("");
 
   const [submissions, setSubmissions] = useLocalStorageState(
-    "gpop-audit-submissions",
-    auditSubmissions
+    AUDIT_SUBMISSIONS_STORAGE_KEY,
+    getDefaultAuditSubmissions()
   );
 
   const enrichedTemplates = useMemo(
-    () =>
-      auditTemplates.map((template) => ({
-        ...template,
-        daysUntilDue: daysUntil(template.nextDue),
-        dueText: getDueText(template.nextDue),
-      })),
+    () => enrichAuditTemplates(auditTemplates),
     []
   );
 
-  const selectedTemplate =
-    enrichedTemplates.find((template) => template.id === selectedTemplateId) ||
-    enrichedTemplates[0];
+  const selectedTemplate = useMemo(
+    () => getAuditTemplateById(auditTemplates, selectedTemplateId),
+    [selectedTemplateId]
+  );
 
-  const filteredTemplates = enrichedTemplates.filter((template) => {
-    const searchText =
-      `${template.name} ${template.category} ${template.assignedTo} ${template.owner} ${template.description}`.toLowerCase();
+  const filteredTemplates = useMemo(
+    () => filterAuditTemplates(enrichedTemplates, searchTerm, statusFilter),
+    [enrichedTemplates, searchTerm, statusFilter]
+  );
 
-    const matchesSearch = searchText.includes(searchTerm.toLowerCase());
-    const matchesStatus =
-      statusFilter === "All" || template.status === statusFilter;
+  const metrics = useMemo(
+    () => getAuditMetrics(auditTemplates, submissions),
+    [submissions]
+  );
 
-    return matchesSearch && matchesStatus;
-  });
+  const selectedTemplateSubmissions = useMemo(
+    () => getSubmissionsForTemplate(submissions, selectedTemplate.id),
+    [submissions, selectedTemplate.id]
+  );
 
-  const overdueCount = enrichedTemplates.filter(
-    (template) => template.status === "Overdue"
-  ).length;
-
-  const dueSoonCount = enrichedTemplates.filter(
-    (template) => template.status === "Due soon"
-  ).length;
-
-  const actionRequiredCount = submissions.filter(
-    (submission) => submission.result === "Action required"
-  ).length;
+  const recentSubmissions = useMemo(
+    () => getRecentAuditSubmissions(submissions),
+    [submissions]
+  );
 
   function submitMockAudit(event) {
     event.preventDefault();
 
-    const newSubmission = {
-      id: Date.now(),
-      templateId: selectedTemplate.id,
-      auditName: selectedTemplate.name,
+    const newSubmission = createAuditSubmission({
+      template: selectedTemplate,
       completedBy,
-      completedDate: new Date().toISOString().slice(0, 10),
-      result: issuesFound === "Yes" ? "Action required" : "Completed",
       issuesFound,
-      actionRequired:
-        issuesFound === "Yes"
-          ? actionRequired || "Action required"
-          : "None",
-    };
+      actionRequired,
+    });
 
-    setSubmissions((currentSubmissions) => [
-      newSubmission,
-      ...currentSubmissions,
-    ]);
+    setSubmissions((currentSubmissions) =>
+      addAuditSubmission(currentSubmissions, newSubmission)
+    );
 
     setActionRequired("");
     setIssuesFound("No");
@@ -98,7 +96,7 @@ export function AuditsPage() {
     <>
       <SectionHeader eyebrow="Audits" title="Audit & safety checks">
         Operational audit templates for daily, weekly, monthly and annual safety
-        checks. Mock submissions now survive refresh using localStorage.
+        checks. Audit submissions now run through the audit service layer.
       </SectionHeader>
 
       <section className="metric-grid">
@@ -110,19 +108,19 @@ export function AuditsPage() {
         />
         <MetricCard
           title="Due soon"
-          value={dueSoonCount}
+          value={metrics.dueSoonAudits.length}
           detail="Upcoming audit checks"
           icon={Clock}
         />
         <MetricCard
           title="Overdue"
-          value={overdueCount}
+          value={metrics.overdueAudits.length}
           detail="Requires escalation"
           icon={AlertTriangle}
         />
         <MetricCard
           title="Actions"
-          value={actionRequiredCount}
+          value={metrics.actionRequiredSubmissions.length}
           detail="Submissions needing action"
           icon={Thermometer}
         />
@@ -171,6 +169,8 @@ export function AuditsPage() {
               { key: "risk", label: "Risk" },
             ]}
             rows={filteredTemplates}
+            emptyTitle="No audit templates found"
+            emptyMessage="Try clearing the search box or changing the status filter."
             renderCell={(row, key) => {
               if (key === "name") {
                 return (
@@ -234,6 +234,10 @@ export function AuditsPage() {
               <span>Required evidence</span>
               <strong>{selectedTemplate.requiredEvidence}</strong>
             </div>
+            <div>
+              <span>Submissions</span>
+              <strong>{selectedTemplateSubmissions.length}</strong>
+            </div>
           </div>
         </aside>
       </section>
@@ -259,8 +263,8 @@ export function AuditsPage() {
 
         <div className="panel">
           <SectionHeader eyebrow="Submit" title="Mock audit completion">
-            This creates a mock submission in the table below and now survives
-            browser refresh.
+            This creates a mock submission and persists it in browser
+            localStorage.
           </SectionHeader>
 
           <form className="audit-submit-form" onSubmit={submitMockAudit}>
@@ -305,6 +309,64 @@ export function AuditsPage() {
         </div>
       </section>
 
+      <section className="content-grid">
+        <div className="panel">
+          <SectionHeader eyebrow="Selected audit" title="Submission history">
+            Recent submissions for the selected audit template.
+          </SectionHeader>
+
+          <DataTable
+            columns={[
+              { key: "completedBy", label: "Completed by" },
+              { key: "completedDate", label: "Date" },
+              { key: "result", label: "Result" },
+              { key: "issuesFound", label: "Issues" },
+              { key: "actionRequired", label: "Action required" },
+            ]}
+            rows={selectedTemplateSubmissions}
+            emptyTitle="No submissions for this audit"
+            emptyMessage="Submit a mock audit completion to create a record."
+            renderCell={(row, key) => {
+              if (key === "completedBy") return <strong>{row.completedBy}</strong>;
+              if (key === "completedDate") return formatDate(row.completedDate);
+              if (key === "result" || key === "issuesFound") {
+                return <Badge>{row[key]}</Badge>;
+              }
+              return row[key];
+            }}
+          />
+        </div>
+
+        <div className="panel">
+          <SectionHeader eyebrow="Exceptions" title="Action required">
+            Audit submissions that need follow-up.
+          </SectionHeader>
+
+          <div className="governance-alert-grid">
+            {metrics.actionRequiredSubmissions.length === 0 ? (
+              <div className="empty-state">
+                <strong>No audit actions</strong>
+                <span>No submitted audits currently require action.</span>
+              </div>
+            ) : (
+              metrics.actionRequiredSubmissions.map((submission) => (
+                <div className="governance-alert" key={submission.id}>
+                  <div>
+                    <strong>{submission.auditName}</strong>
+                    <span>
+                      {submission.completedBy} ·{" "}
+                      {formatDate(submission.completedDate)} ·{" "}
+                      {submission.actionRequired}
+                    </span>
+                  </div>
+                  <Badge>Action required</Badge>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </section>
+
       <section className="panel">
         <SectionHeader eyebrow="Submissions" title="Recent audit submissions">
           These are mock audit records stored in browser localStorage.
@@ -319,7 +381,9 @@ export function AuditsPage() {
             { key: "issuesFound", label: "Issues" },
             { key: "actionRequired", label: "Action required" },
           ]}
-          rows={submissions}
+          rows={recentSubmissions}
+          emptyTitle="No audit submissions"
+          emptyMessage="Submit a mock audit completion to create your first audit record."
           renderCell={(row, key) => {
             if (key === "auditName") return <strong>{row.auditName}</strong>;
             if (key === "completedDate") return formatDate(row.completedDate);

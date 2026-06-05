@@ -13,67 +13,44 @@ import { MetricCard } from "../components/MetricCard";
 import { SectionHeader } from "../components/SectionHeader";
 import { DataTable } from "../components/DataTable";
 import { useLocalStorageState } from "../hooks/useLocalStorageState";
-import { formatDate, daysUntil, getDueText } from "../utils/dateUtils";
+import { formatDate } from "../utils/dateUtils";
 
 import { inboxItems, inboxQuickFilters } from "../data/inbox";
+
+import {
+  INBOX_STORAGE_KEY,
+  enrichInboxItems,
+  filterInboxItems,
+  getInboxMetrics,
+  getInboxModuleSummary,
+  updateInboxItemStatus,
+} from "../services/inboxService";
 
 function GraduationMiniIcon() {
   return <span className="mini-icon">T</span>;
 }
 
 export function InboxPage() {
-  const [items, setItems] = useLocalStorageState("gpop-inbox-items", inboxItems);
+  const [items, setItems] = useLocalStorageState(INBOX_STORAGE_KEY, inboxItems);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
   const [selectedItemId, setSelectedItemId] = useState(inboxItems[0].id);
 
-  const enrichedItems = useMemo(
-    () =>
-      items.map((item) => ({
-        ...item,
-        dueText: getDueText(item.dueDate),
-        daysUntilDue: daysUntil(item.dueDate),
-      })),
-    [items]
+  const enrichedItems = useMemo(() => enrichInboxItems(items), [items]);
+
+  const filteredItems = useMemo(
+    () => filterInboxItems(enrichedItems, searchTerm, activeFilter),
+    [enrichedItems, searchTerm, activeFilter]
   );
 
-  const filteredItems = enrichedItems.filter((item) => {
-    const searchText =
-      `${item.title} ${item.module} ${item.type} ${item.assignedTo} ${item.description}`.toLowerCase();
-
-    const matchesSearch = searchText.includes(searchTerm.toLowerCase());
-
-    const matchesFilter =
-      activeFilter === "All" ||
-      item.priority === activeFilter ||
-      item.status === activeFilter ||
-      item.module === activeFilter;
-
-    return matchesSearch && matchesFilter;
-  });
+  const metrics = useMemo(() => getInboxMetrics(items), [items]);
 
   const selectedItem =
     enrichedItems.find((item) => item.id === selectedItemId) || enrichedItems[0];
 
-  const openItems = enrichedItems.filter((item) => item.status === "Open");
-  const highPriorityItems = enrichedItems.filter(
-    (item) => item.priority === "High" && item.status !== "Done"
-  );
-  const overdueItems = enrichedItems.filter(
-    (item) => item.daysUntilDue < 0 && item.status !== "Done"
-  );
-  const doneItems = enrichedItems.filter((item) => item.status === "Done");
-
   function updateItemStatus(itemId, newStatus) {
     setItems((currentItems) =>
-      currentItems.map((item) =>
-        item.id === itemId
-          ? {
-              ...item,
-              status: newStatus,
-            }
-          : item
-      )
+      updateInboxItemStatus(currentItems, itemId, newStatus)
     );
   }
 
@@ -87,25 +64,25 @@ export function InboxPage() {
       <section className="metric-grid">
         <MetricCard
           title="Open items"
-          value={openItems.length}
+          value={metrics.openItems.length}
           detail="Active alerts and tasks"
           icon={Bell}
         />
         <MetricCard
           title="High priority"
-          value={highPriorityItems.length}
+          value={metrics.highPriorityItems.length}
           detail="Needs management attention"
           icon={AlertTriangle}
         />
         <MetricCard
           title="Overdue"
-          value={overdueItems.length}
+          value={metrics.overdueItems.length}
           detail="Past due date"
           icon={Clock}
         />
         <MetricCard
           title="Completed"
-          value={doneItems.length}
+          value={metrics.doneItems.length}
           detail="Marked done in this session"
           icon={CheckCircle2}
         />
@@ -157,6 +134,8 @@ export function InboxPage() {
               { key: "status", label: "Status" },
             ]}
             rows={filteredItems}
+            emptyTitle="No inbox items found"
+            emptyMessage="Try clearing the search box or changing the quick filter."
             renderCell={(row, key) => {
               if (key === "title") {
                 return (
@@ -271,21 +250,15 @@ export function InboxPage() {
               "Finance",
               "Care Navigation",
             ].map((moduleName) => {
-              const moduleItems = enrichedItems.filter(
-                (item) => item.module === moduleName && item.status !== "Done"
-              );
-
-              const highCount = moduleItems.filter(
-                (item) => item.priority === "High"
-              ).length;
+              const moduleSummary = getInboxModuleSummary(items, moduleName);
 
               return (
                 <div className="module-alert-card" key={moduleName}>
                   <div>
                     <strong>{moduleName}</strong>
-                    <span>{moduleItems.length} open item(s)</span>
+                    <span>{moduleSummary.moduleItems.length} open item(s)</span>
                   </div>
-                  <Badge>{highCount > 0 ? "High" : "Medium"}</Badge>
+                  <Badge>{moduleSummary.riskLabel}</Badge>
                 </div>
               );
             })}
