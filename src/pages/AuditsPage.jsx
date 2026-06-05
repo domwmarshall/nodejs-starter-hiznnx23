@@ -29,6 +29,15 @@ import {
   getSubmissionsForTemplate,
 } from "../services/auditService";
 
+import {
+  AlertBanner,
+  Button,
+  FormField,
+  PageHeader,
+  Panel,
+  fieldClassName,
+} from "../components/ui";
+
 export function AuditsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -94,10 +103,11 @@ export function AuditsPage() {
 
   return (
     <>
-      <SectionHeader eyebrow="Audits" title="Audit & safety checks">
+      <PageHeader eyebrow="Audits" title="Audit & safety checks">
         Operational audit templates for daily, weekly, monthly and annual safety
-        checks. Audit submissions now run through the audit service layer.
-      </SectionHeader>
+        checks. Audit submissions run through the audit service layer and persist
+        in browser localStorage.
+      </PageHeader>
 
       <section className="metric-grid">
         <MetricCard
@@ -126,8 +136,32 @@ export function AuditsPage() {
         />
       </section>
 
+      {metrics.overdueAudits.length > 0 ? (
+        <AlertBanner
+          tone="danger"
+          title="Overdue audits"
+          icon={AlertTriangle}
+        >
+          {metrics.overdueAudits.length} audit
+          {metrics.overdueAudits.length === 1 ? " is" : "s are"} overdue and
+          should be escalated.
+        </AlertBanner>
+      ) : null}
+
+      {metrics.actionRequiredSubmissions.length > 0 ? (
+        <AlertBanner
+          tone="warning"
+          title="Audit actions required"
+          icon={Thermometer}
+        >
+          {metrics.actionRequiredSubmissions.length} submitted audit
+          {metrics.actionRequiredSubmissions.length === 1 ? " needs" : "s need"}{" "}
+          follow-up action.
+        </AlertBanner>
+      ) : null}
+
       <section className="content-grid">
-        <div className="panel panel-large">
+        <Panel className="panel panel-large">
           <SectionHeader eyebrow="Template library" title="Audit templates">
             Search and filter audit templates. Click an audit name to view the
             questions and submit a mock completion.
@@ -174,12 +208,16 @@ export function AuditsPage() {
             renderCell={(row, key) => {
               if (key === "name") {
                 return (
-                  <button
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
                     className="text-button"
+                    style={{ padding: 0, justifyContent: "flex-start" }}
                     onClick={() => setSelectedTemplateId(row.id)}
                   >
                     {row.name}
-                  </button>
+                  </Button>
                 );
               }
 
@@ -198,9 +236,9 @@ export function AuditsPage() {
               return row[key];
             }}
           />
-        </div>
+        </Panel>
 
-        <aside className="panel policy-detail-panel">
+        <Panel as="aside" className="panel policy-detail-panel">
           <SectionHeader eyebrow="Selected audit" title={selectedTemplate.name}>
             {selectedTemplate.description}
           </SectionHeader>
@@ -239,11 +277,11 @@ export function AuditsPage() {
               <strong>{selectedTemplateSubmissions.length}</strong>
             </div>
           </div>
-        </aside>
+        </Panel>
       </section>
 
       <section className="content-grid">
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Audit questions" title="Checklist">
             These questions define what the staff member must confirm before
             completing the audit.
@@ -259,18 +297,18 @@ export function AuditsPage() {
               </div>
             ))}
           </div>
-        </div>
+        </Panel>
 
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Submit" title="Mock audit completion">
             This creates a mock submission and persists it in browser
             localStorage.
           </SectionHeader>
 
           <form className="audit-submit-form" onSubmit={submitMockAudit}>
-            <label>
-              Completed by
+            <FormField label="Completed by">
               <select
+                className={fieldClassName}
                 value={completedBy}
                 onChange={(event) => setCompletedBy(event.target.value)}
               >
@@ -280,37 +318,37 @@ export function AuditsPage() {
                 <option>Dispenser User</option>
                 <option>Admin User</option>
               </select>
-            </label>
+            </FormField>
 
-            <label>
-              Issues found?
+            <FormField label="Issues found?">
               <select
+                className={fieldClassName}
                 value={issuesFound}
                 onChange={(event) => setIssuesFound(event.target.value)}
               >
                 <option>No</option>
                 <option>Yes</option>
               </select>
-            </label>
+            </FormField>
 
-            <label>
-              Action required
+            <FormField label="Action required">
               <textarea
+                className={fieldClassName}
                 value={actionRequired}
                 onChange={(event) => setActionRequired(event.target.value)}
                 placeholder="Enter action required if any issues were found"
               />
-            </label>
+            </FormField>
 
-            <button type="submit" className="primary-button">
+            <Button type="submit" variant="primary">
               Submit mock audit
-            </button>
+            </Button>
           </form>
-        </div>
+        </Panel>
       </section>
 
       <section className="content-grid">
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Selected audit" title="Submission history">
             Recent submissions for the selected audit template.
           </SectionHeader>
@@ -335,9 +373,9 @@ export function AuditsPage() {
               return row[key];
             }}
           />
-        </div>
+        </Panel>
 
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Exceptions" title="Action required">
             Audit submissions that need follow-up.
           </SectionHeader>
@@ -364,10 +402,10 @@ export function AuditsPage() {
               ))
             )}
           </div>
-        </div>
+        </Panel>
       </section>
 
-      <section className="panel">
+      <Panel className="panel">
         <SectionHeader eyebrow="Submissions" title="Recent audit submissions">
           These are mock audit records stored in browser localStorage.
         </SectionHeader>
@@ -393,7 +431,7 @@ export function AuditsPage() {
             return row[key];
           }}
         />
-      </section>
+      </Panel>
     </>
   );
 }

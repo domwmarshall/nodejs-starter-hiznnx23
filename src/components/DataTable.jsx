@@ -1,3 +1,5 @@
+import { EmptyState } from "./ui";
+
 export function DataTable({
   columns,
   rows = [],
@@ -9,11 +11,11 @@ export function DataTable({
 
   if (safeRows.length === 0) {
     return (
-      <div className="table-empty-state">
-        <div className="table-empty-icon">—</div>
-        <strong>{emptyTitle}</strong>
-        <p>{emptyMessage}</p>
-      </div>
+      <EmptyState
+        className="table-empty-state"
+        title={emptyTitle}
+        message={emptyMessage}
+      />
     );
   }
 
@@ -34,9 +36,7 @@ export function DataTable({
               <tr key={row.id || row.name || row.title || rowIndex}>
                 {columns.map((column) => (
                   <td key={column.key}>
-                    {renderCell
-                      ? renderCell(row, column.key)
-                      : row[column.key]}
+                    {renderCell ? renderCell(row, column.key) : row[column.key]}
                   </td>
                 ))}
               </tr>

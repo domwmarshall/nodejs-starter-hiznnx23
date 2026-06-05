@@ -25,6 +25,13 @@ import {
   getTrainingMetrics,
 } from "../services/trainingService";
 
+import {
+  AlertBanner,
+  Button,
+  PageHeader,
+  Panel,
+} from "../components/ui";
+
 export function TrainingPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -62,10 +69,10 @@ export function TrainingPage() {
 
   return (
     <>
-      <SectionHeader eyebrow="Training" title="Mandatory training matrix">
+      <PageHeader eyebrow="Training" title="Mandatory training matrix">
         Role-based mandatory training, renewal cycles, completion tracking and
         evidence status. Training calculations now run through the service layer.
-      </SectionHeader>
+      </PageHeader>
 
       <section className="metric-grid">
         <MetricCard
@@ -94,8 +101,20 @@ export function TrainingPage() {
         />
       </section>
 
+      {metrics.highRiskOverdueRecords.length > 0 ? (
+        <AlertBanner
+          tone="danger"
+          title="High-risk overdue training"
+          icon={AlertTriangle}
+        >
+          {metrics.highRiskOverdueRecords.length} high-risk training record
+          {metrics.highRiskOverdueRecords.length === 1 ? " is" : "s are"}{" "}
+          overdue and should be escalated.
+        </AlertBanner>
+      ) : null}
+
       <section className="content-grid">
-        <div className="panel panel-large">
+        <Panel className="panel panel-large">
           <SectionHeader eyebrow="Training matrix" title="Staff training records">
             Search and filter staff training records. Click a course name to view
             its role assignment and completion status.
@@ -144,12 +163,16 @@ export function TrainingPage() {
 
               if (key === "courseName") {
                 return (
-                  <button
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
                     className="text-button"
+                    style={{ padding: 0, justifyContent: "flex-start" }}
                     onClick={() => setSelectedCourseId(row.courseId)}
                   >
                     {row.courseName}
-                  </button>
+                  </Button>
                 );
               }
 
@@ -172,9 +195,9 @@ export function TrainingPage() {
               return row[key];
             }}
           />
-        </div>
+        </Panel>
 
-        <aside className="panel policy-detail-panel">
+        <Panel as="aside" className="panel policy-detail-panel">
           <SectionHeader eyebrow="Selected course" title={selectedCourse.name}>
             {selectedCourse.description}
           </SectionHeader>
@@ -214,18 +237,18 @@ export function TrainingPage() {
           </div>
 
           <div className="policy-actions">
-            <button type="button" className="primary-button">
+            <Button type="button" variant="primary">
               Assign course
-            </button>
-            <button type="button" className="secondary-button">
+            </Button>
+            <Button type="button" variant="secondary">
               Send reminder
-            </button>
+            </Button>
           </div>
-        </aside>
+        </Panel>
       </section>
 
       <section className="content-grid">
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Selected course" title="Completion by staff">
             Staff records linked to the selected training course.
           </SectionHeader>
@@ -248,9 +271,9 @@ export function TrainingPage() {
               return row[key];
             }}
           />
-        </div>
+        </Panel>
 
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Role coverage" title="Missing assignment warnings">
             This shows where the system should later auto-detect missing mandatory
             training based on staff role.
@@ -269,10 +292,10 @@ export function TrainingPage() {
               </div>
             ))}
           </div>
-        </div>
+        </Panel>
       </section>
 
-      <section className="panel">
+      <Panel className="panel">
         <SectionHeader eyebrow="Training alerts" title="What needs attention">
           These alerts should later feed into the Inbox and management dashboard.
         </SectionHeader>
@@ -291,21 +314,7 @@ export function TrainingPage() {
             </div>
           ))}
         </div>
-
-        {metrics.highRiskOverdueRecords.length > 0 ? (
-          <div className="danger-banner compact-danger">
-            <AlertTriangle size={22} />
-            <div>
-              <strong>High-risk overdue training</strong>
-              <p>
-                {metrics.highRiskOverdueRecords.length} high-risk training record
-                {metrics.highRiskOverdueRecords.length === 1 ? " is" : "s are"}{" "}
-                overdue and should be escalated.
-              </p>
-            </div>
-          </div>
-        ) : null}
-      </section>
+      </Panel>
     </>
   );
 }

@@ -48,6 +48,14 @@ import {
   getDefaultAuditSubmissions,
 } from "../services/auditService";
 
+import { MODULE_SETTINGS_STORAGE_KEY } from "../services/appShellService";
+
+import {
+  AlertBanner,
+  PageHeader,
+  Panel,
+} from "../components/ui";
+
 function getCourseName(courseId) {
   const course = trainingCourses.find((item) => item.id === courseId);
   return course?.name || "Unknown course";
@@ -75,7 +83,7 @@ export function DashboardPage({ holidayRequests = [] }) {
   );
 
   const [storedModuleSettings] = useLocalStorageState(
-    "gpop-module-settings",
+    MODULE_SETTINGS_STORAGE_KEY,
     moduleSettings
   );
 
@@ -240,22 +248,20 @@ export function DashboardPage({ holidayRequests = [] }) {
 
   return (
     <>
-      <section className="hero-card">
-        <div>
-          <p className="eyebrow">General Practice Operations Portal</p>
-          <h1>Practice Manager Control Centre</h1>
-          <p>
-            Dashboard v3 now includes finance, disabled module warnings, care
-            navigation governance and a prototype readiness score.
-          </p>
-        </div>
-
-        <div className="dashboard-readiness-card">
-          <span>System readiness</span>
-          <strong>{dashboardData.readinessScore}%</strong>
-          <p>Prototype readiness estimate</p>
-        </div>
-      </section>
+      <PageHeader
+        eyebrow="General Practice Operations Portal"
+        title="Practice Manager Control Centre"
+        action={
+          <div className="dashboard-readiness-card">
+            <span>System readiness</span>
+            <strong>{dashboardData.readinessScore}%</strong>
+            <p>Prototype readiness estimate</p>
+          </div>
+        }
+      >
+        Dashboard v4 uses the design-system page header, panels and alert banners
+        while keeping the existing service-layer calculations.
+      </PageHeader>
 
       <section className="metric-grid">
         <MetricCard
@@ -309,35 +315,31 @@ export function DashboardPage({ holidayRequests = [] }) {
       </section>
 
       {dashboardData.disabledModules.length > 0 ? (
-        <section className="dashboard-warning-strip">
-          <AlertTriangle size={22} />
-          <div>
-            <strong>Disabled modules detected</strong>
-            <p>
-              {dashboardData.disabledModules.map((module) => module.name).join(", ")}{" "}
-              {dashboardData.disabledModules.length === 1 ? "is" : "are"} currently
-              switched off in Settings.
-            </p>
-          </div>
-        </section>
+        <AlertBanner
+          tone="warning"
+          title="Disabled modules detected"
+          icon={AlertTriangle}
+        >
+          {dashboardData.disabledModules.map((module) => module.name).join(", ")}{" "}
+          {dashboardData.disabledModules.length === 1 ? "is" : "are"} currently
+          switched off in Settings.
+        </AlertBanner>
       ) : null}
 
       {dashboardData.careNavigationEnabled ? (
-        <section className="danger-banner">
-          <Stethoscope size={24} />
-          <div>
-            <strong>Care Navigation is enabled but not production-ready</strong>
-            <p>
-              The care navigation module is still a shell. It must not be used
-              with real patients until clinical safety, pathway approval,
-              information governance and audit logging are complete.
-            </p>
-          </div>
-        </section>
+        <AlertBanner
+          tone="danger"
+          title="Care Navigation is enabled but not production-ready"
+          icon={Stethoscope}
+        >
+          The care navigation module is still a shell. It must not be used with
+          real patients until clinical safety, pathway approval, information
+          governance and audit logging are complete.
+        </AlertBanner>
       ) : null}
 
       <section className="content-grid">
-        <div className="panel panel-large">
+        <Panel className="panel panel-large">
           <SectionHeader eyebrow="Priority" title="Management action list">
             A combined list of overdue and pending items across compliance,
             training, audits, finance and staff leave.
@@ -374,9 +376,9 @@ export function DashboardPage({ holidayRequests = [] }) {
               return row[key];
             }}
           />
-        </div>
+        </Panel>
 
-        <aside className="panel">
+        <Panel as="aside" className="panel">
           <SectionHeader eyebrow="System health" title="Prototype status">
             Current build readiness and risk position.
           </SectionHeader>
@@ -405,14 +407,16 @@ export function DashboardPage({ holidayRequests = [] }) {
             <div>
               <ToggleRight size={18} />
               <span>{dashboardData.disabledModules.length} disabled module(s)</span>
-              <Badge>{dashboardData.disabledModules.length > 0 ? "Review" : "Clear"}</Badge>
+              <Badge>
+                {dashboardData.disabledModules.length > 0 ? "Review" : "Clear"}
+              </Badge>
             </div>
           </div>
-        </aside>
+        </Panel>
       </section>
 
       <section className="content-grid">
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Finance" title="Finance snapshot">
             Finance v1 summary from expected payments and finance tasks.
           </SectionHeader>
@@ -449,9 +453,9 @@ export function DashboardPage({ holidayRequests = [] }) {
               </div>
             ))}
           </div>
-        </div>
+        </Panel>
 
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Modules" title="Module configuration">
             Shows enabled and disabled modules from Settings.
           </SectionHeader>
@@ -467,11 +471,11 @@ export function DashboardPage({ holidayRequests = [] }) {
               </div>
             ))}
           </div>
-        </div>
+        </Panel>
       </section>
 
       <section className="content-grid">
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Inbox" title="Live alert summary">
             This reflects any Inbox items you have marked done, snoozed or reopened.
           </SectionHeader>
@@ -492,9 +496,9 @@ export function DashboardPage({ holidayRequests = [] }) {
                 </div>
               ))}
           </div>
-        </div>
+        </Panel>
 
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Compliance" title="Policy review position">
             Overdue and upcoming policy review items.
           </SectionHeader>
@@ -519,11 +523,11 @@ export function DashboardPage({ holidayRequests = [] }) {
                 </div>
               ))}
           </div>
-        </div>
+        </Panel>
       </section>
 
       <section className="content-grid">
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Training" title="Training exceptions">
             Overdue and due-soon training records.
           </SectionHeader>
@@ -544,9 +548,9 @@ export function DashboardPage({ holidayRequests = [] }) {
               )
             )}
           </div>
-        </div>
+        </Panel>
 
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Audits" title="Audit exceptions">
             Overdue audits and audit submissions with actions required.
           </SectionHeader>
@@ -557,7 +561,8 @@ export function DashboardPage({ holidayRequests = [] }) {
                 <div>
                   <strong>{audit.name}</strong>
                   <span>
-                    {audit.assignedTo} · {formatDate(audit.nextDue)} · {audit.category}
+                    {audit.assignedTo} · {formatDate(audit.nextDue)} ·{" "}
+                    {audit.category}
                   </span>
                 </div>
                 <Badge>{audit.status}</Badge>
@@ -576,10 +581,10 @@ export function DashboardPage({ holidayRequests = [] }) {
               </div>
             ))}
           </div>
-        </div>
+        </Panel>
       </section>
 
-      <section className="panel">
+      <Panel className="panel">
         <SectionHeader eyebrow="Production readiness" title="Before this becomes real software">
           These high-risk items must be solved before any real-world deployment or
           patient-identifiable data use.
@@ -598,7 +603,7 @@ export function DashboardPage({ holidayRequests = [] }) {
             </div>
           ))}
         </div>
-      </section>
+      </Panel>
     </>
   );
 }

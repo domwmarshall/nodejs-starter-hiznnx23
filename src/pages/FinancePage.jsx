@@ -37,6 +37,13 @@ import {
   updateFinanceTaskStatus,
 } from "../services/financeService";
 
+import {
+  AlertBanner,
+  Button,
+  PageHeader,
+  Panel,
+} from "../components/ui";
+
 export function FinancePage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPaymentId, setSelectedPaymentId] = useState(expectedPayments[0].id);
@@ -73,11 +80,11 @@ export function FinancePage() {
 
   return (
     <>
-      <SectionHeader eyebrow="Finance" title="Finance & dispensary profitability">
+      <PageHeader eyebrow="Finance" title="Finance & dispensary profitability">
         Finance v1 tracks expected payments, CQRS tasks, invoice placeholders,
         budget allocation and mock dispensary profitability. No real financial
         data is connected yet.
-      </SectionHeader>
+      </PageHeader>
 
       <section className="metric-grid">
         <MetricCard
@@ -118,8 +125,19 @@ export function FinancePage() {
         />
       </section>
 
+      {taskMetrics.overdueTasks.length > 0 ? (
+        <AlertBanner
+          tone="danger"
+          title="Overdue finance tasks"
+          icon={AlertTriangle}
+        >
+          {taskMetrics.overdueTasks.length} finance task
+          {taskMetrics.overdueTasks.length === 1 ? " is" : "s are"} overdue.
+        </AlertBanner>
+      ) : null}
+
       <section className="content-grid">
-        <div className="panel panel-large">
+        <Panel className="panel panel-large">
           <SectionHeader eyebrow="Expected payments" title="Payment tracker">
             Search expected income and select a payment to view details. This is
             mock data only for now.
@@ -158,13 +176,16 @@ export function FinancePage() {
             renderCell={(row, key) => {
               if (key === "source") {
                 return (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     className="text-button"
+                    style={{ padding: 0, justifyContent: "flex-start" }}
                     onClick={() => setSelectedPaymentId(row.id)}
                   >
                     {row.source}
-                  </button>
+                  </Button>
                 );
               }
 
@@ -192,9 +213,9 @@ export function FinancePage() {
               return row[key];
             }}
           />
-        </div>
+        </Panel>
 
-        <aside className="panel policy-detail-panel">
+        <Panel as="aside" className="panel policy-detail-panel">
           <SectionHeader eyebrow="Selected payment" title={selectedPayment.source}>
             {selectedPayment.note}
           </SectionHeader>
@@ -229,11 +250,11 @@ export function FinancePage() {
               <strong>{formatMoney(selectedPayment.variance)}</strong>
             </div>
           </div>
-        </aside>
+        </Panel>
       </section>
 
       <section className="content-grid">
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Tasks" title="Finance action queue">
             These task statuses persist in browser localStorage.
           </SectionHeader>
@@ -268,27 +289,30 @@ export function FinancePage() {
               if (key === "actions") {
                 return (
                   <div className="action-buttons">
-                    <button
+                    <Button
                       type="button"
-                      className="small-button approve-button"
+                      size="sm"
+                      variant="primary"
                       onClick={() => updateTaskStatus(row.id, "Done")}
                     >
                       Done
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
-                      className="small-button settings-toggle-button"
+                      size="sm"
+                      variant="secondary"
                       onClick={() => updateTaskStatus(row.id, "Snoozed")}
                     >
                       Snooze
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
-                      className="small-button reject-button"
+                      size="sm"
+                      variant="secondary"
                       onClick={() => updateTaskStatus(row.id, "Open")}
                     >
                       Reopen
-                    </button>
+                    </Button>
                   </div>
                 );
               }
@@ -296,9 +320,9 @@ export function FinancePage() {
               return row[key];
             }}
           />
-        </div>
+        </Panel>
 
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Overview" title="Monthly position">
             Mock management summary for the selected finance period.
           </SectionHeader>
@@ -329,24 +353,11 @@ export function FinancePage() {
               <strong>{formatMoney(financeOverview.dispensaryEstimatedProfit)}</strong>
             </div>
           </div>
-
-          {taskMetrics.overdueTasks.length > 0 ? (
-            <div className="danger-banner compact-danger">
-              <AlertTriangle size={22} />
-              <div>
-                <strong>Overdue finance tasks</strong>
-                <p>
-                  {taskMetrics.overdueTasks.length} finance task
-                  {taskMetrics.overdueTasks.length === 1 ? " is" : "s are"} overdue.
-                </p>
-              </div>
-            </div>
-          ) : null}
-        </div>
+        </Panel>
       </section>
 
       <section className="content-grid">
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Dispensary" title="Profitability snapshot">
             Mock line-level view to support future GPP, invoice and e-CASS
             reconciliation.
@@ -363,6 +374,7 @@ export function FinancePage() {
             rows={dispensaryProfitLines}
             renderCell={(row, key) => {
               if (key === "item") return <strong>{row.item}</strong>;
+
               if (
                 key === "supplierCost" ||
                 key === "reimbursement" ||
@@ -370,13 +382,15 @@ export function FinancePage() {
               ) {
                 return formatMoney(row[key]);
               }
+
               if (key === "status") return <Badge>{row.status}</Badge>;
+
               return row[key];
             }}
           />
-        </div>
+        </Panel>
 
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Budgets" title="Wage and budget allocation">
             Mock split between practice, dispensary and ARRS budget areas.
           </SectionHeader>
@@ -392,20 +406,25 @@ export function FinancePage() {
             rows={budgetAllocations}
             renderCell={(row, key) => {
               if (key === "area") return <strong>{row.area}</strong>;
+
               if (key === "monthlyCost" || key === "reclaimable") {
                 return formatMoney(row[key]);
               }
-              if (key === "budget" || key === "status") return <Badge>{row[key]}</Badge>;
+
+              if (key === "budget" || key === "status") {
+                return <Badge>{row[key]}</Badge>;
+              }
+
               return row[key];
             }}
           />
-        </div>
+        </Panel>
       </section>
 
-      <section className="panel">
+      <Panel className="panel">
         <SectionHeader eyebrow="Invoices" title="Supplier invoice placeholders">
-          Future version: upload supplier invoice files, extract line items, match
-          against GPP/e-CASS reimbursement and flag losses.
+          Future version: upload supplier invoice files, extract line items,
+          match against GPP/e-CASS reimbursement and flag losses.
         </SectionHeader>
 
         <DataTable
@@ -424,7 +443,7 @@ export function FinancePage() {
             return row[key];
           }}
         />
-      </section>
+      </Panel>
     </>
   );
 }

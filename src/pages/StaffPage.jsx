@@ -28,6 +28,15 @@ import {
   getStaffSummaryRows,
 } from "../services/staffService";
 
+import {
+  AlertBanner,
+  Button,
+  FormField,
+  PageHeader,
+  Panel,
+  fieldClassName,
+} from "../components/ui";
+
 export function StaffPage({
   holidayRequests = [],
   addHolidayRequest,
@@ -65,6 +74,7 @@ export function StaffPage({
   );
 
   const selectedStaffEntitlement = getStaffEntitlement(selectedStaff);
+
   const selectedApprovedHours = selectedStaffRequests
     .filter((request) => request.status === "Approved")
     .reduce((total, request) => total + Number(request.hours || 0), 0);
@@ -105,10 +115,10 @@ export function StaffPage({
 
   return (
     <>
-      <SectionHeader eyebrow="Staff" title="Staff, leave and availability">
+      <PageHeader eyebrow="Staff" title="Staff, leave and availability">
         Staff profiles, holiday requests and leave approval workflow. Leave logic
         now runs through the staff service layer.
-      </SectionHeader>
+      </PageHeader>
 
       <section className="metric-grid">
         <MetricCard
@@ -137,8 +147,20 @@ export function StaffPage({
         />
       </section>
 
+      {metrics.pendingRequests.length > 0 ? (
+        <AlertBanner
+          tone="warning"
+          title="Pending leave requests"
+          icon={CalendarDays}
+        >
+          {metrics.pendingRequests.length} leave request
+          {metrics.pendingRequests.length === 1 ? " is" : "s are"} awaiting a
+          management decision.
+        </AlertBanner>
+      ) : null}
+
       <section className="content-grid">
-        <div className="panel panel-large">
+        <Panel className="panel panel-large">
           <SectionHeader eyebrow="Staff list" title="Team overview">
             Select a staff member to view their leave position and requests.
           </SectionHeader>
@@ -158,13 +180,16 @@ export function StaffPage({
             renderCell={(row, key) => {
               if (key === "name") {
                 return (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     className="text-button"
+                    style={{ padding: 0, justifyContent: "flex-start" }}
                     onClick={() => setSelectedStaffName(row.name)}
                   >
                     {row.name}
-                  </button>
+                  </Button>
                 );
               }
 
@@ -185,10 +210,13 @@ export function StaffPage({
               return row[key];
             }}
           />
-        </div>
+        </Panel>
 
-        <aside className="panel staff-detail-panel">
-          <SectionHeader eyebrow="Selected staff" title={getStaffDisplayName(selectedStaff)}>
+        <Panel as="aside" className="panel staff-detail-panel">
+          <SectionHeader
+            eyebrow="Selected staff"
+            title={getStaffDisplayName(selectedStaff)}
+          >
             Current mock staff profile and annual leave position.
           </SectionHeader>
 
@@ -231,11 +259,11 @@ export function StaffPage({
               />
             </div>
           </div>
-        </aside>
+        </Panel>
       </section>
 
       <section className="content-grid">
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Leave requests" title="Request queue">
             Approve, reject or reopen leave requests. These requests persist in
             browser localStorage.
@@ -262,33 +290,36 @@ export function StaffPage({
               if (key === "actions") {
                 return (
                   <div className="action-buttons">
-                    <button
+                    <Button
                       type="button"
-                      className="small-button approve-button"
+                      size="sm"
+                      variant="primary"
                       onClick={() =>
                         updateHolidayRequestStatus(row.id, "Approved")
                       }
                     >
                       Approve
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
-                      className="small-button reject-button"
+                      size="sm"
+                      variant="danger"
                       onClick={() =>
                         updateHolidayRequestStatus(row.id, "Rejected")
                       }
                     >
                       Reject
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
-                      className="small-button settings-toggle-button"
+                      size="sm"
+                      variant="secondary"
                       onClick={() =>
                         updateHolidayRequestStatus(row.id, "Pending")
                       }
                     >
                       Reopen
-                    </button>
+                    </Button>
                   </div>
                 );
               }
@@ -296,9 +327,9 @@ export function StaffPage({
               return row[key];
             }}
           />
-        </div>
+        </Panel>
 
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="New request" title="Add leave request">
             Create a mock leave request. This does not check rota safety yet.
           </SectionHeader>
@@ -309,9 +340,9 @@ export function StaffPage({
             </h3>
 
             <div className="form-grid">
-              <label>
-                Staff member
+              <FormField label="Staff member">
                 <select
+                  className={fieldClassName}
                   value={newRequestStaffName}
                   onChange={(event) => setNewRequestStaffName(event.target.value)}
                 >
@@ -321,31 +352,31 @@ export function StaffPage({
                     </option>
                   ))}
                 </select>
-              </label>
+              </FormField>
 
-              <label>
-                Date
+              <FormField label="Date">
                 <input
+                  className={fieldClassName}
                   type="date"
                   value={newRequestDate}
                   onChange={(event) => setNewRequestDate(event.target.value)}
                 />
-              </label>
+              </FormField>
 
-              <label>
-                Hours
+              <FormField label="Hours">
                 <input
+                  className={fieldClassName}
                   type="number"
                   min="0"
                   step="0.5"
                   value={newRequestHours}
                   onChange={(event) => setNewRequestHours(event.target.value)}
                 />
-              </label>
+              </FormField>
 
-              <label>
-                Reason
+              <FormField label="Reason">
                 <select
+                  className={fieldClassName}
                   value={newRequestReason}
                   onChange={(event) => setNewRequestReason(event.target.value)}
                 >
@@ -355,7 +386,7 @@ export function StaffPage({
                   <option>Training</option>
                   <option>Other</option>
                 </select>
-              </label>
+              </FormField>
             </div>
 
             <p className="request-preview">
@@ -363,14 +394,14 @@ export function StaffPage({
               {newRequestHours} hrs · {newRequestReason}
             </p>
 
-            <button type="submit" className="primary-button">
+            <Button type="submit" variant="primary">
               Add leave request
-            </button>
+            </Button>
           </form>
-        </div>
+        </Panel>
       </section>
 
-      <section className="panel">
+      <Panel className="panel">
         <SectionHeader eyebrow="Selected staff" title="Leave history">
           Leave records linked to the currently selected staff member.
         </SectionHeader>
@@ -392,7 +423,7 @@ export function StaffPage({
             return row[key];
           }}
         />
-      </section>
+      </Panel>
     </>
   );
 }

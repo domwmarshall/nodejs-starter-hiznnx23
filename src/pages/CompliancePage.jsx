@@ -24,6 +24,13 @@ import {
   getPolicyQuestions,
 } from "../services/complianceService";
 
+import {
+  AlertBanner,
+  Button,
+  PageHeader,
+  Panel,
+} from "../components/ui";
+
 export function CompliancePage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -55,10 +62,10 @@ export function CompliancePage() {
 
   return (
     <>
-      <SectionHeader eyebrow="Compliance" title="Policy & SOP hub">
+      <PageHeader eyebrow="Compliance" title="Policy & SOP hub">
         Policies, SOPs, acknowledgements, questionnaires, review dates and owner
         reminders. Compliance logic now runs through the service layer.
-      </SectionHeader>
+      </PageHeader>
 
       <section className="metric-grid">
         <MetricCard
@@ -87,8 +94,20 @@ export function CompliancePage() {
         />
       </section>
 
+      {metrics.overduePolicies.length > 0 ? (
+        <AlertBanner
+          tone="danger"
+          title="Overdue policy reviews"
+          icon={AlertTriangle}
+        >
+          {metrics.overduePolicies.length} policy review
+          {metrics.overduePolicies.length === 1 ? " is" : "s are"} overdue and
+          should be escalated to the document owner.
+        </AlertBanner>
+      ) : null}
+
       <section className="content-grid">
-        <div className="panel panel-large">
+        <Panel className="panel panel-large">
           <SectionHeader eyebrow="Policy library" title="Controlled documents">
             Search, filter and select a policy to view its review details,
             questionnaire examples and staff acknowledgement status.
@@ -135,12 +154,16 @@ export function CompliancePage() {
             renderCell={(row, key) => {
               if (key === "name") {
                 return (
-                  <button
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
                     className="text-button"
+                    style={{ padding: 0, justifyContent: "flex-start" }}
                     onClick={() => setSelectedPolicyId(row.id)}
                   >
                     {row.name}
-                  </button>
+                  </Button>
                 );
               }
 
@@ -170,9 +193,9 @@ export function CompliancePage() {
               return row[key];
             }}
           />
-        </div>
+        </Panel>
 
-        <aside className="panel policy-detail-panel">
+        <Panel as="aside" className="panel policy-detail-panel">
           <SectionHeader eyebrow="Selected policy" title={selectedPolicy.name}>
             {selectedPolicy.summary}
           </SectionHeader>
@@ -213,18 +236,18 @@ export function CompliancePage() {
           </div>
 
           <div className="policy-actions">
-            <button type="button" className="primary-button">
+            <Button type="button" variant="primary">
               Mark reviewed
-            </button>
-            <button type="button" className="secondary-button">
+            </Button>
+            <Button type="button" variant="secondary">
               Send reminder
-            </button>
+            </Button>
           </div>
-        </aside>
+        </Panel>
       </section>
 
       <section className="content-grid">
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Questionnaire" title="Knowledge check examples">
             Later, GPOP can generate or store role-specific questions before staff
             can acknowledge a policy.
@@ -245,9 +268,9 @@ export function CompliancePage() {
               ))}
             </div>
           )}
-        </div>
+        </Panel>
 
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Acknowledgements" title="Staff completion">
             Staff must complete the policy questionnaire before acknowledgement
             can be recorded.
@@ -270,10 +293,10 @@ export function CompliancePage() {
               return row[key];
             }}
           />
-        </div>
+        </Panel>
       </section>
 
-      <section className="panel">
+      <Panel className="panel">
         <SectionHeader eyebrow="Governance alerts" title="What needs attention">
           These are the types of compliance alerts that should later feed into
           the Inbox and management dashboard.
@@ -293,7 +316,7 @@ export function CompliancePage() {
             </div>
           ))}
         </div>
-      </section>
+      </Panel>
     </>
   );
 }

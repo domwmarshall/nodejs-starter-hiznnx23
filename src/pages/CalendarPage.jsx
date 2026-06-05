@@ -12,6 +12,12 @@ import {
   getLeaveCalendarRows,
 } from "../services/staffService";
 
+import {
+  AlertBanner,
+  PageHeader,
+  Panel,
+} from "../components/ui";
+
 const mockWeekDays = [
   {
     label: "Monday",
@@ -69,10 +75,10 @@ export function CalendarPage({ holidayRequests = [] }) {
 
   return (
     <>
-      <SectionHeader eyebrow="Calendar" title="Calendar and leave overlay">
+      <PageHeader eyebrow="Calendar" title="Calendar and leave overlay">
         Prototype calendar view showing approved leave against a mock practice
         week. This is not a full rota engine yet.
-      </SectionHeader>
+      </PageHeader>
 
       <section className="metric-grid">
         <MetricCard
@@ -101,8 +107,18 @@ export function CalendarPage({ holidayRequests = [] }) {
         />
       </section>
 
+      <AlertBanner
+        tone="warning"
+        title="Calendar logic is placeholder only"
+        icon={CalendarDays}
+      >
+        This page does not yet check GP or nurse capacity, duplicate leave,
+        appointment slot safety, blood collection times or required dispensary
+        cover.
+      </AlertBanner>
+
       <section className="content-grid">
-        <div className="panel panel-large">
+        <Panel className="panel panel-large">
           <SectionHeader eyebrow="Week view" title="Mock rota week">
             Approved leave is shown against each mock day. Later this needs a
             proper rota model, appointment capacity rules and cover logic.
@@ -143,25 +159,13 @@ export function CalendarPage({ holidayRequests = [] }) {
               return row[key];
             }}
           />
-        </div>
+        </Panel>
 
-        <aside className="panel">
+        <Panel as="aside" className="panel">
           <SectionHeader eyebrow="Calendar warning" title="Not a rota engine yet">
             This page should stay simple until we build a proper rota and absence
             data model.
           </SectionHeader>
-
-          <div className="danger-banner settings-danger">
-            <CalendarDays size={22} />
-            <div>
-              <strong>Calendar logic is placeholder only</strong>
-              <p>
-                This does not yet check GP/nurse capacity, duplicate leave,
-                appointment slot safety, blood collection times or required
-                dispensary cover.
-              </p>
-            </div>
-          </div>
 
           <div className="settings-mini-list">
             <div>
@@ -176,11 +180,15 @@ export function CalendarPage({ holidayRequests = [] }) {
               <Users size={18} />
               <span>Cover checking not active yet</span>
             </div>
+            <div>
+              <CalendarDays size={18} />
+              <span>Calendar remains mock-only</span>
+            </div>
           </div>
-        </aside>
+        </Panel>
       </section>
 
-      <section className="panel">
+      <Panel className="panel">
         <SectionHeader eyebrow="Leave list" title="All leave requests">
           This list is shared with the Staff page through the staff service layer.
         </SectionHeader>
@@ -203,7 +211,7 @@ export function CalendarPage({ holidayRequests = [] }) {
             return row[key];
           }}
         />
-      </section>
+      </Panel>
     </>
   );
 }

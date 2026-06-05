@@ -40,6 +40,13 @@ const sizeStyles = {
   },
 };
 
+const disabledStyles = {
+  opacity: 0.58,
+  cursor: "not-allowed",
+  transform: "none",
+  boxShadow: "none",
+};
+
 export function Button({
   children,
   variant = "primary",
@@ -47,12 +54,28 @@ export function Button({
   className = "",
   type = "button",
   style,
+  leftIcon: LeftIcon,
+  rightIcon: RightIcon,
+  fullWidth = false,
+  isLoading = false,
+  disabled = false,
   ...props
 }) {
+  const isDisabled = disabled || isLoading;
+
   return (
     <button
       type={type}
-      className={`ui-button ${className}`.trim()}
+      disabled={isDisabled}
+      className={[
+        "ui-button",
+        `ui-button-${variant}`,
+        `ui-button-${size}`,
+        fullWidth ? "ui-button-full" : "",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
       style={{
         display: "inline-flex",
         alignItems: "center",
@@ -64,13 +87,18 @@ export function Button({
         cursor: "pointer",
         transition: "all 0.15s ease",
         textDecoration: "none",
+        width: fullWidth ? "100%" : undefined,
         ...sizeStyles[size],
         ...variantStyles[variant],
+        ...(isDisabled ? disabledStyles : {}),
         ...style,
       }}
       {...props}
     >
-      {children}
+      {isLoading ? <span className="ui-button-spinner" aria-hidden="true" /> : null}
+      {LeftIcon && !isLoading ? <LeftIcon size={16} /> : null}
+      <span>{children}</span>
+      {RightIcon ? <RightIcon size={16} /> : null}
     </button>
   );
 }

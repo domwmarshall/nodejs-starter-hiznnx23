@@ -34,6 +34,9 @@ import {
   AlertBanner,
   Button,
   PageHeader,
+  FormField,
+  fieldClassName,
+  Panel,
 } from "../components/ui";
 
 export function SettingsPage({
@@ -91,7 +94,7 @@ export function SettingsPage({
       );
       return;
     }
-  
+
     const updatedModules = localModuleSettings.map((module) =>
       module.id === moduleId
         ? {
@@ -100,7 +103,7 @@ export function SettingsPage({
           }
         : module
     );
-  
+
     setModuleToggleSettings(updatedModules);
   }
 
@@ -118,8 +121,8 @@ export function SettingsPage({
   return (
     <>
       <PageHeader eyebrow="Settings" title="Admin settings">
-      Practice configuration, module toggles, permissions, reminder rules and
-      production readiness checks.
+        Practice configuration, module toggles, permissions, reminder rules and
+        production readiness checks.
       </PageHeader>
 
       <section className="metric-grid">
@@ -150,49 +153,49 @@ export function SettingsPage({
       </section>
 
       <section className="content-grid">
-        <div className="panel panel-large">
+        <Panel className="panel panel-large">
           <SectionHeader eyebrow="Practice profile" title="Editable system configuration">
             These values are now editable and stored in this browser using
             localStorage. Later they should move into a real database.
           </SectionHeader>
 
           <form className="settings-edit-form">
-            <label>
-              Practice name
+            <FormField label="Practice name">
               <input
+                className={fieldClassName}
                 type="text"
                 value={appConfig.practiceName}
                 onChange={(event) =>
                   updateConfigField("practiceName", event.target.value)
                 }
               />
-            </label>
+            </FormField>
 
-            <label>
-              Short system name
+            <FormField label="Short system name">
               <input
+                className={fieldClassName}
                 type="text"
                 value={appConfig.systemName}
                 onChange={(event) =>
                   updateConfigField("systemName", event.target.value)
                 }
               />
-            </label>
+            </FormField>
 
-            <label>
-              Full system name
+            <FormField label="Full system name">
               <input
+                className={fieldClassName}
                 type="text"
                 value={appConfig.systemFullName}
                 onChange={(event) =>
                   updateConfigField("systemFullName", event.target.value)
                 }
               />
-            </label>
+            </FormField>
 
-            <label>
-              Data mode
+            <FormField label="Data mode">
               <select
+                className={fieldClassName}
                 value={appConfig.dataMode}
                 onChange={(event) =>
                   updateConfigField("dataMode", event.target.value)
@@ -203,50 +206,53 @@ export function SettingsPage({
                 <option>Database planned</option>
                 <option>Production locked</option>
               </select>
-            </label>
+            </FormField>
 
-            <label>
-              Holiday year start
+            <FormField label="Holiday year start">
               <input
+                className={fieldClassName}
                 type="text"
                 value={appConfig.holidayYearStart}
                 onChange={(event) =>
                   updateConfigField("holidayYearStart", event.target.value)
                 }
               />
-            </label>
+            </FormField>
 
-            <label>
-              Holiday year end
+            <FormField label="Holiday year end">
               <input
+                className={fieldClassName}
                 type="text"
                 value={appConfig.holidayYearEnd}
                 onChange={(event) =>
                   updateConfigField("holidayYearEnd", event.target.value)
                 }
               />
-            </label>
+            </FormField>
 
-            <label>
-              Admin contact
+            <FormField label="Admin contact">
               <input
+                className={fieldClassName}
                 type="text"
                 value={appConfig.adminContact}
                 onChange={(event) =>
                   updateConfigField("adminContact", event.target.value)
                 }
               />
-            </label>
+            </FormField>
 
-            <label className="settings-wide-field">
-              Prototype warning text
+            <FormField
+              label="Prototype warning text"
+              className="settings-wide-field"
+            >
               <textarea
+                className={fieldClassName}
                 value={appConfig.prototypeWarning}
                 onChange={(event) =>
                   updateConfigField("prototypeWarning", event.target.value)
                 }
               />
-            </label>
+            </FormField>
           </form>
 
           <div className="settings-save-strip">
@@ -258,17 +264,18 @@ export function SettingsPage({
               </span>
             </div>
 
-            <button
-  type="button"
-  className="secondary-button settings-reset-button"
-  onClick={resetAppConfig}
->
-  Reset profile
-</button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="settings-reset-button"
+              onClick={resetAppConfig}
+            >
+              Reset profile
+            </Button>
           </div>
-        </div>
+        </Panel>
 
-        <aside className="panel">
+        <Panel as="aside" className="panel">
           <SectionHeader eyebrow="Current profile" title="Live configuration preview">
             This preview shows the current saved browser configuration.
           </SectionHeader>
@@ -309,19 +316,19 @@ export function SettingsPage({
               <Badge>{practiceSettings.databaseStatus}</Badge>
             </div>
           </div>
-        </aside>
+        </Panel>
       </section>
 
       <section className="content-grid">
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Safety" title="Prototype rules">
             These rules should stay visible until the app has proper security,
             governance and hosting.
           </SectionHeader>
 
           <AlertBanner tone="danger" title="No patient-identifiable data" icon={Lock}>
-  {appConfig.prototypeWarning}
-</AlertBanner>
+            {appConfig.prototypeWarning}
+          </AlertBanner>
 
           <div className="settings-mini-list">
             <div>
@@ -337,9 +344,9 @@ export function SettingsPage({
               <span>No patient data in uploads</span>
             </div>
           </div>
-        </div>
+        </Panel>
 
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Configuration maturity" title="What this means">
             These settings currently only affect this browser. In the production
             app, this should be a controlled admin-only configuration area.
@@ -368,11 +375,11 @@ export function SettingsPage({
               <Badge>Planned</Badge>
             </div>
           </div>
-        </div>
+        </Panel>
       </section>
 
       <section className="content-grid">
-        <div className="panel panel-large">
+        <Panel className="panel panel-large">
           <SectionHeader eyebrow="Modules" title="Module toggles">
             Turn modules on/off in this mock settings area. Toggles now update
             the sidebar immediately and persist after refresh.
@@ -391,13 +398,16 @@ export function SettingsPage({
             renderCell={(row, key) => {
               if (key === "name") {
                 return (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     className="text-button"
+                    style={{ padding: 0, justifyContent: "flex-start" }}
                     onClick={() => setSelectedModuleId(row.id)}
                   >
                     {row.name}
-                  </button>
+                  </Button>
                 );
               }
 
@@ -411,22 +421,24 @@ export function SettingsPage({
 
               if (key === "actions") {
                 return (
-                  <button
+                  <Button
                     type="button"
-                    className="small-button settings-toggle-button"
+                    size="sm"
+                    variant={row.enabled ? "danger" : "primary"}
+                    className="settings-toggle-button"
                     onClick={() => toggleModule(row.id)}
                   >
                     {row.enabled ? "Disable" : "Enable"}
-                  </button>
+                  </Button>
                 );
               }
 
               return row[key];
             }}
           />
-        </div>
+        </Panel>
 
-        <aside className="panel policy-detail-panel">
+        <Panel as="aside" className="panel policy-detail-panel">
           <SectionHeader eyebrow="Selected module" title={selectedModule.name}>
             {selectedModule.description}
           </SectionHeader>
@@ -447,18 +459,18 @@ export function SettingsPage({
           </div>
 
           <div className="policy-actions">
-            <button
+            <Button
               type="button"
-              className="primary-button"
+              variant={selectedModule.enabled ? "danger" : "primary"}
               onClick={() => toggleModule(selectedModule.id)}
             >
               {selectedModule.enabled ? "Disable module" : "Enable module"}
-            </button>
+            </Button>
           </div>
-        </aside>
+        </Panel>
       </section>
 
-      <section className="panel">
+      <Panel className="panel">
         <SectionHeader eyebrow="Permissions" title="Role permissions matrix">
           This is a mock role-based access model. Later this will control what
           each user can see and do after login.
@@ -483,10 +495,10 @@ export function SettingsPage({
             return <Badge>{row[key]}</Badge>;
           }}
         />
-      </section>
+      </Panel>
 
       <section className="content-grid">
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Reminders" title="Reminder settings">
             These are planned rules for feeding alerts into the Inbox.
           </SectionHeader>
@@ -504,9 +516,9 @@ export function SettingsPage({
               return row[key];
             }}
           />
-        </div>
+        </Panel>
 
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Production" title="Readiness checklist">
             These items must be addressed before the app can be used as a real
             multi-user system.
@@ -525,10 +537,10 @@ export function SettingsPage({
               </div>
             ))}
           </div>
-        </div>
+        </Panel>
       </section>
 
-      <section className="panel">
+      <Panel className="panel">
         <SectionHeader eyebrow="Demo data" title="Reset prototype data">
           Clear saved browser data and reload the app back to the original demo
           state.
@@ -549,13 +561,13 @@ export function SettingsPage({
             </p>
           </div>
 
-          <button type="button" className="danger-button" onClick={resetDemoData}>
-  Reset demo data
-</button>
+          <Button type="button" variant="danger" onClick={resetDemoData}>
+            Reset demo data
+          </Button>
         </div>
-      </section>
+      </Panel>
 
-      <section className="panel">
+      <Panel className="panel">
         <SectionHeader eyebrow="Next technical phase" title="Storage plan">
           This is the planned route from prototype to production-quality app.
         </SectionHeader>
@@ -582,7 +594,7 @@ export function SettingsPage({
             <span>Authentication, permissions, backups, audit logs and testing.</span>
           </div>
         </div>
-      </section>
+      </Panel>
     </>
   );
 }

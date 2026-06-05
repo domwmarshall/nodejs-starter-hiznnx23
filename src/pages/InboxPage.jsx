@@ -26,6 +26,13 @@ import {
   updateInboxItemStatus,
 } from "../services/inboxService";
 
+import {
+  AlertBanner,
+  Button,
+  PageHeader,
+  Panel,
+} from "../components/ui";
+
 function GraduationMiniIcon() {
   return <span className="mini-icon">T</span>;
 }
@@ -56,10 +63,10 @@ export function InboxPage() {
 
   return (
     <>
-      <SectionHeader eyebrow="Inbox" title="Notification centre">
-        Central command centre for reminders, governance alerts, training, audits,
-        rota warnings and operational actions.
-      </SectionHeader>
+      <PageHeader eyebrow="Inbox" title="Notification centre">
+        Central command centre for reminders, governance alerts, training,
+        audits, rota warnings and operational actions.
+      </PageHeader>
 
       <section className="metric-grid">
         <MetricCard
@@ -88,8 +95,20 @@ export function InboxPage() {
         />
       </section>
 
+      {metrics.overdueItems.length > 0 ? (
+        <AlertBanner
+          tone="warning"
+          title="Overdue inbox items"
+          icon={AlertTriangle}
+        >
+          {metrics.overdueItems.length} inbox item
+          {metrics.overdueItems.length === 1 ? " is" : "s are"} overdue and may
+          need management attention.
+        </AlertBanner>
+      ) : null}
+
       <section className="content-grid">
-        <div className="panel panel-large">
+        <Panel className="panel panel-large">
           <SectionHeader eyebrow="Inbox list" title="Action queue">
             Search, filter and select an item. Buttons update mock state and now
             survive refresh using localStorage.
@@ -108,9 +127,11 @@ export function InboxPage() {
 
             <div className="quick-filter-list">
               {inboxQuickFilters.map((filter) => (
-                <button
+                <Button
                   key={filter}
                   type="button"
+                  size="sm"
+                  variant={activeFilter === filter ? "primary" : "secondary"}
                   className={
                     activeFilter === filter
                       ? "quick-filter quick-filter-active"
@@ -119,7 +140,7 @@ export function InboxPage() {
                   onClick={() => setActiveFilter(filter)}
                 >
                   {filter}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -139,12 +160,16 @@ export function InboxPage() {
             renderCell={(row, key) => {
               if (key === "title") {
                 return (
-                  <button
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
                     className="text-button"
+                    style={{ padding: 0, justifyContent: "flex-start" }}
                     onClick={() => setSelectedItemId(row.id)}
                   >
                     {row.title}
-                  </button>
+                  </Button>
                 );
               }
 
@@ -164,9 +189,9 @@ export function InboxPage() {
               return row[key];
             }}
           />
-        </div>
+        </Panel>
 
-        <aside className="panel inbox-detail-panel">
+        <Panel as="aside" className="panel inbox-detail-panel">
           <SectionHeader eyebrow="Selected item" title={selectedItem.title}>
             {selectedItem.description}
           </SectionHeader>
@@ -207,35 +232,35 @@ export function InboxPage() {
           </div>
 
           <div className="policy-actions">
-            <button
+            <Button
               type="button"
-              className="primary-button"
+              variant="primary"
               onClick={() => updateItemStatus(selectedItem.id, "Done")}
             >
               Mark done
-            </button>
+            </Button>
 
-            <button
+            <Button
               type="button"
-              className="secondary-button"
+              variant="secondary"
               onClick={() => updateItemStatus(selectedItem.id, "Snoozed")}
             >
               Snooze
-            </button>
+            </Button>
 
-            <button
+            <Button
               type="button"
-              className="secondary-button"
+              variant="secondary"
               onClick={() => updateItemStatus(selectedItem.id, "Open")}
             >
               Reopen
-            </button>
+            </Button>
           </div>
-        </aside>
+        </Panel>
       </section>
 
       <section className="content-grid">
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Module summary" title="Alerts by module">
             A future version will generate these automatically from each module.
           </SectionHeader>
@@ -263,9 +288,9 @@ export function InboxPage() {
               );
             })}
           </div>
-        </div>
+        </Panel>
 
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Governance" title="Inbox rules planned">
             These rules will decide what appears here automatically.
           </SectionHeader>
@@ -288,7 +313,7 @@ export function InboxPage() {
               <span>High-risk modules create governance alerts</span>
             </div>
           </div>
-        </div>
+        </Panel>
       </section>
     </>
   );

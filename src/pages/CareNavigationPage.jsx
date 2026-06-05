@@ -26,6 +26,15 @@ import {
   getPathwaySafetyStatus,
 } from "../services/careNavigationService";
 
+import {
+  AlertBanner,
+  Button,
+  FormField,
+  PageHeader,
+  Panel,
+  fieldClassName,
+} from "../components/ui";
+
 const careNavigationPathways = getDefaultCareNavigationPathways();
 const careNavigationGovernanceChecklist =
   getDefaultCareNavigationGovernanceChecklist();
@@ -103,23 +112,21 @@ export function CareNavigationPage() {
 
   return (
     <>
-      <SectionHeader eyebrow="Care Navigation" title="Reception care navigation shell">
+      <PageHeader eyebrow="Care Navigation" title="Reception care navigation shell">
         This is a safe structural shell for future telephone care navigation. It
         does not contain approved clinical decision logic and must not be used
         with real patients.
-      </SectionHeader>
+      </PageHeader>
 
-      <section className="danger-banner">
-        <AlertTriangle size={24} />
-        <div>
-          <strong>Not for real patient use</strong>
-          <p>
-            This module is a prototype only. Red-flag prompts, pathway routing and
-            escalation wording require clinical safety review, information
-            governance review, version control and formal approval before use.
-          </p>
-        </div>
-      </section>
+      <AlertBanner
+        tone="danger"
+        title="Not for real patient use"
+        icon={AlertTriangle}
+      >
+        This module is a prototype only. Red-flag prompts, pathway routing and
+        escalation wording require clinical safety review, information governance
+        review, version control and formal approval before use.
+      </AlertBanner>
 
       <section className="metric-grid">
         <MetricCard
@@ -149,7 +156,7 @@ export function CareNavigationPage() {
       </section>
 
       <section className="content-grid">
-        <div className="panel panel-large">
+        <Panel className="panel panel-large">
           <SectionHeader eyebrow="Pathway library" title="Care navigation pathways">
             Search and select a draft pathway. These records are structural
             placeholders, not approved clinical guidance.
@@ -197,26 +204,31 @@ export function CareNavigationPage() {
             renderCell={(row, key) => {
               if (key === "name") {
                 return (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     className="text-button"
+                    style={{ padding: 0, justifyContent: "flex-start" }}
                     onClick={() => changeSelectedPathway(row.id)}
                   >
                     {row.name}
-                  </button>
+                  </Button>
                 );
               }
 
               if (key === "status" || key === "risk" || key === "reviewStatus") {
-                return <Badge>{key === "risk" ? `${row.risk} risk` : row[key]}</Badge>;
+                return (
+                  <Badge>{key === "risk" ? `${row.risk} risk` : row[key]}</Badge>
+                );
               }
 
               return row[key];
             }}
           />
-        </div>
+        </Panel>
 
-        <aside className="panel policy-detail-panel">
+        <Panel as="aside" className="panel policy-detail-panel">
           <SectionHeader eyebrow="Selected pathway" title={selectedPathway.name}>
             {selectedPathway.description}
           </SectionHeader>
@@ -263,22 +275,24 @@ export function CareNavigationPage() {
               <strong>{selectedPathway.nextReview}</strong>
             </div>
           </div>
-        </aside>
+        </Panel>
       </section>
 
       <section className="content-grid">
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Call builder" title="Mock care navigation note">
             Build a non-clinical mock note. This only demonstrates the structure
             of a future SystmOne-ready note.
           </SectionHeader>
 
           <form className="care-nav-form">
-            <label>
-              Selected pathway
+            <FormField label="Selected pathway">
               <select
+                className={fieldClassName}
                 value={selectedPathwayId}
-                onChange={(event) => changeSelectedPathway(Number(event.target.value))}
+                onChange={(event) =>
+                  changeSelectedPathway(Number(event.target.value))
+                }
               >
                 {careNavigationPathways.map((pathway) => (
                   <option key={pathway.id} value={pathway.id}>
@@ -286,31 +300,31 @@ export function CareNavigationPage() {
                   </option>
                 ))}
               </select>
-            </label>
+            </FormField>
 
-            <label>
-              Presenting request
+            <FormField label="Presenting request">
               <input
+                className={fieldClassName}
                 type="text"
                 placeholder="Example: back pain, rash, sore throat"
                 value={presentingRequest}
                 onChange={(event) => setPresentingRequest(event.target.value)}
               />
-            </label>
+            </FormField>
 
-            <label>
-              Duration
+            <FormField label="Duration">
               <input
+                className={fieldClassName}
                 type="text"
                 placeholder="Example: 3 days"
                 value={duration}
                 onChange={(event) => setDuration(event.target.value)}
               />
-            </label>
+            </FormField>
 
-            <label>
-              Recurring / known issue?
+            <FormField label="Recurring / known issue?">
               <select
+                className={fieldClassName}
                 value={knownIssue}
                 onChange={(event) => setKnownIssue(event.target.value)}
               >
@@ -318,11 +332,11 @@ export function CareNavigationPage() {
                 <option>Yes</option>
                 <option>Not known</option>
               </select>
-            </label>
+            </FormField>
 
-            <label>
-              Suggested clinic/action type
+            <FormField label="Suggested clinic/action type">
               <select
+                className={fieldClassName}
                 value={selectedClinicType}
                 onChange={(event) => setSelectedClinicType(event.target.value)}
               >
@@ -330,11 +344,11 @@ export function CareNavigationPage() {
                   <option key={clinicType}>{clinicType}</option>
                 ))}
               </select>
-            </label>
+            </FormField>
 
-            <label>
-              Supporting action
+            <FormField label="Supporting action">
               <select
+                className={fieldClassName}
                 value={supportingAction}
                 onChange={(event) => setSupportingAction(event.target.value)}
               >
@@ -345,29 +359,29 @@ export function CareNavigationPage() {
                 <option>Ask patient to collect throat swab</option>
                 <option>Book with clinician first</option>
               </select>
-            </label>
+            </FormField>
 
-            <label>
-              Red-flag response summary
+            <FormField label="Red-flag response summary">
               <textarea
+                className={fieldClassName}
                 placeholder="Prototype only. Do not use for real patient safety decisions."
                 value={redFlagSummary}
                 onChange={(event) => setRedFlagSummary(event.target.value)}
               />
-            </label>
+            </FormField>
 
-            <label>
-              Additional notes
+            <FormField label="Additional notes">
               <textarea
+                className={fieldClassName}
                 placeholder="Optional non-clinical note details"
                 value={additionalNotes}
                 onChange={(event) => setAdditionalNotes(event.target.value)}
               />
-            </label>
+            </FormField>
           </form>
-        </div>
+        </Panel>
 
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="SystmOne preview" title="Generated note preview">
             This is a text preview only. Later this could become a copy-to-clipboard
             SystmOne note format.
@@ -375,21 +389,20 @@ export function CareNavigationPage() {
 
           <pre className="note-preview">{systmOneNotePreview}</pre>
 
-          <div className="care-nav-warning-box">
-            <AlertTriangle size={20} />
-            <div>
-              <strong>Safety warning</strong>
-              <span>
-                Do not copy this into a real patient record. This is a prototype
-                note preview only.
-              </span>
-            </div>
-          </div>
-        </div>
+          <AlertBanner
+            tone="danger"
+            title="Safety warning"
+            icon={AlertTriangle}
+            className="mt-4"
+          >
+            Do not copy this into a real patient record. This is a prototype note
+            preview only.
+          </AlertBanner>
+        </Panel>
       </section>
 
       <section className="content-grid">
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Red flags" title="Placeholder safety prompts">
             These prompts are examples only. They must be clinically reviewed and
             approved before use.
@@ -403,9 +416,9 @@ export function CareNavigationPage() {
               </div>
             ))}
           </div>
-        </div>
+        </Panel>
 
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Governance" title="Approval checklist">
             Required before this module can be used in a live practice setting.
           </SectionHeader>
@@ -421,11 +434,11 @@ export function CareNavigationPage() {
               </div>
             ))}
           </div>
-        </div>
+        </Panel>
       </section>
 
       <section className="content-grid">
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Governance summary" title="Clinical safety position">
             Summary of pathway and checklist readiness.
           </SectionHeader>
@@ -463,9 +476,9 @@ export function CareNavigationPage() {
               <Badge>Locked</Badge>
             </div>
           </div>
-        </div>
+        </Panel>
 
-        <div className="panel">
+        <Panel className="panel">
           <SectionHeader eyebrow="Approved use" title="What is allowed now">
             This module can be used only for safe build/testing work.
           </SectionHeader>
@@ -484,10 +497,10 @@ export function CareNavigationPage() {
               <span>Not safe for real patient triage</span>
             </div>
           </div>
-        </div>
+        </Panel>
       </section>
 
-      <section className="panel">
+      <Panel className="panel">
         <SectionHeader eyebrow="Mock history" title="Recent care navigation notes">
           Example records only. Real use would require authentication, audit logs,
           pathway versioning and secure storage.
@@ -512,7 +525,7 @@ export function CareNavigationPage() {
             return row[key];
           }}
         />
-      </section>
+      </Panel>
     </>
   );
 }
