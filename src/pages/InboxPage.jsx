@@ -16,6 +16,19 @@ import { useLocalStorageState } from "../hooks/useLocalStorageState";
 import { formatDate } from "../utils/dateUtils";
 
 import { inboxItems, inboxQuickFilters } from "../data/inbox";
+import { staff as baseStaff } from "../data/staff";
+import { moduleSettings } from "../data/settings";
+import { auditTemplates } from "../data/audits";
+import { financeTasks } from "../data/finance";
+import { supplierInvoiceLines } from "../data/dispensaryFinance";
+import {
+  COMPLIANCE_ACKNOWLEDGEMENTS_STORAGE_KEY,
+  COMPLIANCE_POLICIES_STORAGE_KEY,
+  COMPLIANCE_QUESTIONS_STORAGE_KEY,
+  getDefaultPolicies,
+  getDefaultPolicyAcknowledgements,
+  getDefaultPolicyQuestions,
+} from "../services/complianceService";
 
 import {
   INBOX_STORAGE_KEY,
@@ -25,6 +38,20 @@ import {
   getInboxModuleSummary,
   updateInboxItemStatus,
 } from "../services/inboxService";
+
+import {
+  AUDIT_SUBMISSIONS_STORAGE_KEY,
+  getDefaultAuditSubmissions,
+} from "../services/auditService";
+
+import { DISPENSARY_INVOICE_LINES_STORAGE_KEY, FINANCE_TASKS_STORAGE_KEY } from "../services/financeService";
+import { MODULE_SETTINGS_STORAGE_KEY } from "../services/appShellService";
+
+import {
+  getAlertsForUser,
+  getGeneratedOperationalAlerts,
+  getOperationalAlertMetrics,
+} from "../services/operationsAlertService";
 
 import {
   AlertBanner,
@@ -37,8 +64,43 @@ function GraduationMiniIcon() {
   return <span className="mini-icon">T</span>;
 }
 
-export function InboxPage() {
+export function InboxPage({ holidayRequests = [], currentUser, staffList = baseStaff }) {
   const [items, setItems] = useLocalStorageState(INBOX_STORAGE_KEY, inboxItems);
+
+  const [storedAuditSubmissions] = useLocalStorageState(
+    AUDIT_SUBMISSIONS_STORAGE_KEY,
+    getDefaultAuditSubmissions()
+  );
+
+  const [storedFinanceTasks] = useLocalStorageState(
+    FINANCE_TASKS_STORAGE_KEY,
+    financeTasks
+  );
+
+  const [storedInvoiceLines] = useLocalStorageState(
+    DISPENSARY_INVOICE_LINES_STORAGE_KEY,
+    supplierInvoiceLines
+  );
+
+  const [storedModuleSettings] = useLocalStorageState(
+    MODULE_SETTINGS_STORAGE_KEY,
+    moduleSettings
+  );
+
+  const [storedPolicies] = useLocalStorageState(
+    COMPLIANCE_POLICIES_STORAGE_KEY,
+    getDefaultPolicies()
+  );
+
+  const [storedPolicyAcknowledgements] = useLocalStorageState(
+    COMPLIANCE_ACKNOWLEDGEMENTS_STORAGE_KEY,
+    getDefaultPolicyAcknowledgements()
+  );
+
+  const [storedPolicyQuestions] = useLocalStorageState(
+    COMPLIANCE_QUESTIONS_STORAGE_KEY,
+    getDefaultPolicyQuestions()
+  );
   const [searchTerm, setSearchTerm] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
   const [selectedItemId, setSelectedItemId] = useState(inboxItems[0].id);
@@ -51,6 +113,67 @@ export function InboxPage() {
   );
 
   const metrics = useMemo(() => getInboxMetrics(items), [items]);
+
+  const generatedAlerts = useMemo(() => {
+    const safeAuditSubmissions = Array.isArray(storedAuditSubmissions)
+      ? storedAuditSubmissions
+      : getDefaultAuditSubmissions();
+
+    const safeFinanceTasks = Array.isArray(storedFinanceTasks)
+      ? storedFinanceTasks
+      : financeTasks;
+
+    const safeModuleSettings = Array.isArray(storedModuleSettings)
+      ? storedModuleSettings
+      : moduleSettings;
+
+    const safeInvoiceLines = Array.isArray(storedInvoiceLines)
+      ? storedInvoiceLines
+      : supplierInvoiceLines;
+
+    const safePolicies = Array.isArray(storedPolicies)
+      ? storedPolicies
+      : getDefaultPolicies();
+
+    const safePolicyAcknowledgements = Array.isArray(storedPolicyAcknowledgements)
+      ? storedPolicyAcknowledgements
+      : getDefaultPolicyAcknowledgements();
+
+    const safePolicyQuestions = Array.isArray(storedPolicyQuestions)
+      ? storedPolicyQuestions
+      : getDefaultPolicyQuestions();
+
+    return getAlertsForUser(
+      getGeneratedOperationalAlerts({
+        holidayRequests,
+        staffList,
+        auditSubmissions: safeAuditSubmissions,
+        activeFinanceTasks: safeFinanceTasks,
+        activeInvoiceLines: safeInvoiceLines,
+        activeModuleSettings: safeModuleSettings,
+        activePolicies: safePolicies,
+        activePolicyAcknowledgements: safePolicyAcknowledgements,
+        activePolicyQuestions: safePolicyQuestions,
+      }),
+      currentUser
+    );
+  }, [
+    holidayRequests,
+    staffList,
+    storedAuditSubmissions,
+    storedFinanceTasks,
+    storedInvoiceLines,
+    storedModuleSettings,
+    storedPolicies,
+    storedPolicyAcknowledgements,
+    storedPolicyQuestions,
+    currentUser,
+  ]);
+
+  const generatedAlertMetrics = useMemo(
+    () => getOperationalAlertMetrics(generatedAlerts),
+    [generatedAlerts]
+  );
 
   const selectedItem =
     enrichedItems.find((item) => item.id === selectedItemId) || enrichedItems[0];
@@ -92,6 +215,12 @@ export function InboxPage() {
           value={metrics.doneItems.length}
           detail="Marked done in this session"
           icon={CheckCircle2}
+        />
+        <MetricCard
+          title="Generated"
+          value={generatedAlertMetrics.openAlerts.length}
+          detail={`${generatedAlertMetrics.highPriorityAlerts.length} high priority`}
+          icon={ShieldCheck}
         />
       </section>
 
@@ -258,6 +387,55 @@ export function InboxPage() {
           </div>
         </Panel>
       </section>
+
+      <Panel className="panel">
+        <SectionHeader eyebrow="Generated alerts" title="Live operational inbox">
+          These alerts are generated from current workforce, cover, compliance,
+          training, audit, finance and governance data.
+        </SectionHeader>
+
+        <DataTable
+          columns={[
+            { key: "title", label: "Alert" },
+            { key: "module", label: "Module" },
+            { key: "type", label: "Type" },
+            { key: "assignedTo", label: "Assigned to" },
+            { key: "dueDate", label: "Due" },
+            { key: "priority", label: "Priority" },
+            { key: "action", label: "Suggested action" },
+          ]}
+          rows={generatedAlerts}
+          emptyTitle="No generated alerts"
+          emptyMessage="No live operational alerts are currently being generated for this role."
+          renderCell={(row, key) => {
+            if (key === "title") {
+              return (
+                <div className="stacked-cell">
+                  <strong>{row.title}</strong>
+                  <span>{row.description}</span>
+                </div>
+              );
+            }
+
+            if (key === "module" || key === "type" || key === "priority") {
+              return <Badge>{row[key]}</Badge>;
+            }
+
+            if (key === "dueDate") {
+              return row.dueDate ? (
+                <div className="stacked-cell">
+                  <strong>{formatDate(row.dueDate)}</strong>
+                  <span>{row.dueText}</span>
+                </div>
+              ) : (
+                <span className="muted-text">No due date</span>
+              );
+            }
+
+            return row[key];
+          }}
+        />
+      </Panel>
 
       <section className="content-grid">
         <Panel className="panel">

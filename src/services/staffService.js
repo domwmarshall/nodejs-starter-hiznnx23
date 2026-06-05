@@ -48,11 +48,19 @@ export function getStaffTeam(person) {
 }
 
 export function getStaffHours(person) {
+  if (Array.isArray(person?.workingPattern)) {
+    return person.workingPattern.reduce(
+      (total, day) => total + Number(day.hours || 0),
+      0
+    );
+  }
+
   return person?.contractedHours || person?.weeklyHours || person?.hours || 0;
 }
 
 export function getStaffEntitlement(person) {
   return (
+    person?.entitlement?.bookableHours ||
     person?.holidayEntitlementHours ||
     person?.holidayEntitlement ||
     person?.annualLeaveHours ||

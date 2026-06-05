@@ -1,14 +1,29 @@
-import { AlertTriangle, Database, Lock, ShieldCheck, ToggleRight } from "lucide-react";
+import {
+  AlertTriangle,
+  Database,
+  Lock,
+  ShieldCheck,
+  ToggleRight,
+  UserRound,
+} from "lucide-react";
 
 import { Badge } from "./Badge";
 
-export function AppStatusStrip({ metrics }) {
+export function AppStatusStrip({ metrics, activeUser }) {
   return (
     <section className="app-status-strip" aria-label="Application status summary">
       <div className="app-status-item">
+        <UserRound size={18} />
+        <div>
+          <span>Current role</span>
+          <strong>{activeUser.role}</strong>
+        </div>
+      </div>
+
+      <div className="app-status-item">
         <ToggleRight size={18} />
         <div>
-          <span>Enabled modules</span>
+          <span>Available modules</span>
           <strong>{metrics.enabledCount}/{metrics.totalModules}</strong>
         </div>
       </div>
@@ -16,7 +31,7 @@ export function AppStatusStrip({ metrics }) {
       <div className="app-status-item">
         <Lock size={18} />
         <div>
-          <span>Disabled</span>
+          <span>Unavailable</span>
           <strong>{metrics.disabledCount}</strong>
         </div>
       </div>

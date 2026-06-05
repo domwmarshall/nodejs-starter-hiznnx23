@@ -1068,3 +1068,234 @@ td .badge-warning { font-weight: 950; }
     margin-top: 0;
   }
 }
+
+/* FEATURE: STAFF LEAVE COVER CHECKER */
+.cover-preview-card {
+  margin-top: 16px;
+  border: 1px solid #bfdbfe;
+  background: linear-gradient(135deg, #eff6ff, #ffffff);
+  border-radius: 22px;
+  padding: 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.cover-preview-card > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #003087;
+}
+
+.cover-preview-card p {
+  margin: 0;
+  color: #334155;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.cover-warning-list {
+  display: grid;
+  gap: 8px;
+}
+
+.cover-warning-list div {
+  border: 1px solid #fed7aa;
+  background: #fff7ed;
+  color: #9a3412;
+  border-radius: 16px;
+  padding: 10px 12px;
+}
+
+.cover-warning-list strong {
+  display: block;
+  margin-bottom: 3px;
+}
+
+.cover-warning-list span {
+  display: block;
+  color: #9a3412;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.4;
+}
+
+
+/* PRODUCT SPINE v2.1: role switcher and marketable MVP foundations */
+
+.user-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #bfdbfe;
+  background: white;
+  color: #003087;
+  border-radius: 18px;
+  padding: 8px 10px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.user-switcher select {
+  border: 0;
+  background: transparent;
+  color: #003087;
+  font-weight: 950;
+  outline: none;
+  max-width: 220px;
+}
+
+.role-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+}
+
+.role-summary-grid div {
+  border: 1px solid #dbeafe;
+  background: linear-gradient(135deg, #ffffff, #f8fbff);
+  border-radius: 18px;
+  padding: 14px 16px;
+}
+
+.role-summary-grid span {
+  display: block;
+  color: var(--gpop-muted);
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+}
+
+.role-summary-grid strong {
+  color: var(--gpop-blue-dark);
+  font-size: 16px;
+}
+
+.nav-item-disabled .nav-lock,
+.mobile-disabled svg {
+  color: #64748b;
+}
+
+@media (max-width: 1180px) {
+  .app-status-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .topbar-actions {
+    justify-content: stretch;
+    width: 100%;
+  }
+
+  .user-switcher,
+  .quick-module-jump {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .user-switcher select,
+  .quick-module-jump select {
+    flex: 1;
+    max-width: none;
+  }
+
+  .app-status-strip {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Finance v2.3 dispensary profitability engine */
+.finance-invoice-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+  border: 1px solid #bfdbfe;
+  background: linear-gradient(135deg, #eff6ff, #ffffff);
+  border-radius: 24px;
+  padding: 18px;
+}
+
+.finance-form-preview {
+  border: 1px solid #bfdbfe;
+  border-radius: 18px;
+  background: white;
+  padding: 13px 14px;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+}
+
+.finance-form-preview span {
+  color: var(--gpop-muted);
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.finance-form-preview strong {
+  color: var(--gpop-blue-dark);
+  font-size: 22px;
+  letter-spacing: -0.03em;
+}
+
+.finance-form-actions {
+  display: flex;
+  align-items: end;
+}
+
+@media (max-width: 980px) {
+  .finance-invoice-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Compliance engine v2.4 */
+.compliance-toolbar-three {
+  grid-template-columns: minmax(0, 1fr) 180px 180px;
+}
+
+.compliance-create-form,
+.compliance-question-form {
+  display: grid;
+  gap: 14px;
+}
+
+.compliance-create-form textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.compliance-question-form input,
+.compliance-create-form input,
+.compliance-create-form select,
+.compliance-create-form textarea {
+  min-width: 0;
+}
+
+.compliance-section-spacing {
+  margin-top: 16px;
+}
+
+.compliance-target-box {
+  margin-top: 16px;
+}
+
+.question-item span {
+  display: block;
+  color: var(--gpop-muted);
+  font-size: 13px;
+  font-weight: 800;
+  margin-top: 4px;
+}
+
+@media (max-width: 900px) {
+  .compliance-toolbar-three {
+    grid-template-columns: 1fr;
+  }
+}

@@ -7,6 +7,10 @@ export const SETTINGS_STORAGE_KEYS = {
   auditSubmissions: "gpop-audit-submissions",
   moduleSettings: "gpop-module-settings",
   financeTasks: "gpop-finance-tasks",
+  dispensaryInvoiceLines: "gpop-dispensary-invoice-lines",
+  compliancePolicies: "gpop-compliance-policies",
+  complianceAcknowledgements: "gpop-compliance-acknowledgements",
+  complianceQuestions: "gpop-compliance-questions",
   appConfig: "gpop-app-config",
 };
 

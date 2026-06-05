@@ -12,7 +12,7 @@ export function QuickModuleJump({ modules, activePage, onNavigate }) {
       >
         {modules.map((module) => (
           <option key={module.id} value={module.id}>
-            {module.enabled === false && module.id !== "settings" ? "🔒 " : ""}
+            {module.enabled === false ? "🔒 " : ""}
             {module.name}
           </option>
         ))}

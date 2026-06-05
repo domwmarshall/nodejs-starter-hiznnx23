@@ -2,12 +2,14 @@ import { useMemo } from "react";
 import {
   AlertTriangle,
   Bell,
+  CalendarDays,
   ClipboardCheck,
   Clock,
   Database,
   FileText,
   GraduationCap,
   PoundSterling,
+  Building2,
   ShieldCheck,
   Stethoscope,
   ToggleRight,
@@ -24,10 +26,21 @@ import { daysUntil, formatDate, getDueText, getReviewStatus } from "../utils/dat
 import { staff } from "../data/staff";
 import { inboxItems } from "../data/inbox";
 import { policies } from "../data/compliance";
+import {
+  COMPLIANCE_ACKNOWLEDGEMENTS_STORAGE_KEY,
+  COMPLIANCE_POLICIES_STORAGE_KEY,
+  COMPLIANCE_QUESTIONS_STORAGE_KEY,
+  enrichPolicies as enrichCompliancePolicies,
+  getDefaultPolicies,
+  getDefaultPolicyAcknowledgements,
+  getDefaultPolicyQuestions,
+  buildPolicyAcknowledgementMatrix,
+} from "../services/complianceService";
 import { trainingCourses, trainingRecords } from "../data/training";
 import { auditTemplates } from "../data/audits";
 import { moduleSettings, productionReadinessItems } from "../data/settings";
 import { financeTasks, expectedPayments } from "../data/finance";
+import { supplierInvoiceLines } from "../data/dispensaryFinance";
 
 import {
   INBOX_STORAGE_KEY,
@@ -36,8 +49,10 @@ import {
 } from "../services/inboxService";
 
 import {
+  DISPENSARY_INVOICE_LINES_STORAGE_KEY,
   FINANCE_TASKS_STORAGE_KEY,
   formatMoney,
+  getDispensaryProfitability,
   getFinanceTaskMetrics,
   getPaymentTotals,
 } from "../services/financeService";
@@ -49,6 +64,14 @@ import {
 } from "../services/auditService";
 
 import { MODULE_SETTINGS_STORAGE_KEY } from "../services/appShellService";
+import { getCoverMetrics } from "../services/coverService";
+import { getWorkforceAlerts, getWorkforceFinancialSummary } from "../services/workforceService";
+import {
+  getAlertsForUser,
+  getGeneratedOperationalAlerts,
+  getOperationalAlertMetrics,
+} from "../services/operationsAlertService";
+import { getRoleHomeSummary, getUserAccessSummary } from "../services/userService";
 
 import {
   AlertBanner,
@@ -61,11 +84,12 @@ function getCourseName(courseId) {
   return course?.name || "Unknown course";
 }
 
-function getReadinessScore(highRiskGaps, disabledModules, careNavigationEnabled) {
+function getReadinessScore(highRiskGaps, disabledModules, careNavigationEnabled, coverRisks) {
   let score = 100;
 
   score -= highRiskGaps * 8;
   score -= disabledModules * 4;
+  score -= coverRisks * 6;
 
   if (careNavigationEnabled) {
     score -= 12;
@@ -74,7 +98,7 @@ function getReadinessScore(highRiskGaps, disabledModules, careNavigationEnabled)
   return Math.max(score, 0);
 }
 
-export function DashboardPage({ holidayRequests = [] }) {
+export function DashboardPage({ holidayRequests = [], currentUser, staffList = staff }) {
   const [storedInboxItems] = useLocalStorageState(INBOX_STORAGE_KEY, inboxItems);
 
   const [storedAuditSubmissions] = useLocalStorageState(
@@ -92,6 +116,26 @@ export function DashboardPage({ holidayRequests = [] }) {
     financeTasks
   );
 
+  const [storedInvoiceLines] = useLocalStorageState(
+    DISPENSARY_INVOICE_LINES_STORAGE_KEY,
+    supplierInvoiceLines
+  );
+
+  const [storedPolicies] = useLocalStorageState(
+    COMPLIANCE_POLICIES_STORAGE_KEY,
+    getDefaultPolicies()
+  );
+
+  const [storedPolicyAcknowledgements] = useLocalStorageState(
+    COMPLIANCE_ACKNOWLEDGEMENTS_STORAGE_KEY,
+    getDefaultPolicyAcknowledgements()
+  );
+
+  const [storedPolicyQuestions] = useLocalStorageState(
+    COMPLIANCE_QUESTIONS_STORAGE_KEY,
+    getDefaultPolicyQuestions()
+  );
+
   const dashboardData = useMemo(() => {
     const safeModuleSettings = Array.isArray(storedModuleSettings)
       ? storedModuleSettings
@@ -105,14 +149,35 @@ export function DashboardPage({ holidayRequests = [] }) {
       ? storedFinanceTasks
       : financeTasks;
 
+    const safeInvoiceLines = Array.isArray(storedInvoiceLines)
+      ? storedInvoiceLines
+      : supplierInvoiceLines;
+
+    const safePolicies = Array.isArray(storedPolicies)
+      ? storedPolicies
+      : policies;
+
+    const safePolicyAcknowledgements = Array.isArray(storedPolicyAcknowledgements)
+      ? storedPolicyAcknowledgements
+      : getDefaultPolicyAcknowledgements();
+
+    const safePolicyQuestions = Array.isArray(storedPolicyQuestions)
+      ? storedPolicyQuestions
+      : getDefaultPolicyQuestions();
+
     const enrichedInbox = enrichInboxItems(storedInboxItems);
     const inboxMetrics = getInboxMetrics(storedInboxItems);
 
-    const enrichedPolicies = policies.map((policy) => ({
-      ...policy,
-      computedStatus: getReviewStatus(policy.reviewDue, policy.status),
-      daysUntilReview: daysUntil(policy.reviewDue),
-    }));
+    const policyAcknowledgementMatrix = buildPolicyAcknowledgementMatrix(
+      safePolicies,
+      safePolicyAcknowledgements,
+      staffList
+    );
+
+    const enrichedPolicies = enrichCompliancePolicies(
+      safePolicies,
+      policyAcknowledgementMatrix
+    );
 
     const overduePolicies = enrichedPolicies.filter(
       (policy) => policy.computedStatus === "Overdue"
@@ -141,6 +206,18 @@ export function DashboardPage({ holidayRequests = [] }) {
       (request) => request.status === "Approved"
     );
 
+    const coverMetrics = getCoverMetrics({
+      requests: holidayRequests,
+      staffList,
+    });
+
+    const workforceFinancialSummary = getWorkforceFinancialSummary(staffList);
+    const workforceAlerts = getWorkforceAlerts({
+      profiles: staffList,
+      requests: holidayRequests,
+      dates: coverMetrics.dateSnapshots.map((snapshot) => snapshot.date),
+    });
+
     const enabledModules = safeModuleSettings.filter((module) => module.enabled);
     const disabledModules = safeModuleSettings.filter((module) => !module.enabled);
 
@@ -150,6 +227,29 @@ export function DashboardPage({ holidayRequests = [] }) {
 
     const financeTaskMetrics = getFinanceTaskMetrics(safeFinanceTasks);
     const paymentTotals = getPaymentTotals(expectedPayments);
+    const dispensaryProfitability = getDispensaryProfitability({
+      invoiceLines: safeInvoiceLines,
+    });
+
+    const generatedOperationalAlerts = getGeneratedOperationalAlerts({
+      holidayRequests,
+      staffList,
+      auditSubmissions: safeAuditSubmissions,
+      activeFinanceTasks: safeFinanceTasks,
+      activeInvoiceLines: safeInvoiceLines,
+      activeModuleSettings: safeModuleSettings,
+      activePolicies: safePolicies,
+      activePolicyAcknowledgements: safePolicyAcknowledgements,
+      activePolicyQuestions: safePolicyQuestions,
+    });
+
+    const roleOperationalAlerts = getAlertsForUser(
+      generatedOperationalAlerts,
+      currentUser
+    );
+
+    const operationalAlertMetrics = getOperationalAlertMetrics(roleOperationalAlerts);
+    const userAccessSummary = getUserAccessSummary(currentUser);
 
     const careNavigationSetting = safeModuleSettings.find(
       (module) => module.id === "care-navigation"
@@ -160,10 +260,38 @@ export function DashboardPage({ holidayRequests = [] }) {
     const readinessScore = getReadinessScore(
       highRiskProductionGaps.length,
       disabledModules.length,
-      careNavigationEnabled
+      careNavigationEnabled,
+      coverMetrics.riskyPendingRequests.length + coverMetrics.riskyApprovedRequests.length
     );
 
     const priorityActions = [
+      ...roleOperationalAlerts.slice(0, 12).map((alert) => ({
+        id: alert.id,
+        title: alert.title,
+        module: alert.module,
+        issue: alert.type,
+        owner: alert.assignedTo,
+        due: alert.dueDate,
+        priority: alert.priority,
+      })),
+      ...coverMetrics.riskyApprovedRequests.map((request) => ({
+        id: `cover-approved-${request.id}`,
+        title: `${request.staffName} approved leave`,
+        module: "Staff",
+        issue: "Cover warning",
+        owner: "Practice Manager",
+        due: request.date,
+        priority: request.coverRisk,
+      })),
+      ...coverMetrics.riskyPendingRequests.map((request) => ({
+        id: `cover-pending-${request.id}`,
+        title: `${request.staffName} pending leave`,
+        module: "Staff",
+        issue: "Check cover before approval",
+        owner: "Practice Manager",
+        due: request.date,
+        priority: request.coverRisk,
+      })),
       ...overduePolicies.map((policy) => ({
         id: `policy-${policy.id}`,
         title: policy.name,
@@ -214,6 +342,10 @@ export function DashboardPage({ holidayRequests = [] }) {
     return {
       enrichedInbox,
       openInboxItems: inboxMetrics.openItems,
+      generatedOperationalAlerts,
+      roleOperationalAlerts,
+      operationalAlertMetrics,
+      userAccessSummary,
       highPriorityInboxItems: inboxMetrics.highPriorityItems,
       overdueInboxItems: inboxMetrics.overdueItems,
       enrichedPolicies,
@@ -226,6 +358,9 @@ export function DashboardPage({ holidayRequests = [] }) {
       auditActions,
       pendingLeave,
       approvedLeave,
+      coverMetrics,
+      workforceFinancialSummary,
+      workforceAlerts,
       enabledModules,
       disabledModules,
       highRiskProductionGaps,
@@ -233,6 +368,7 @@ export function DashboardPage({ holidayRequests = [] }) {
       highPriorityFinanceTasks: financeTaskMetrics.highPriorityTasks,
       overdueFinanceTasks: financeTaskMetrics.overdueTasks,
       financeOutstanding: paymentTotals.outstanding,
+      dispensaryProfitability,
       careNavigationEnabled,
       readinessScore,
       priorityActions,
@@ -243,14 +379,20 @@ export function DashboardPage({ holidayRequests = [] }) {
     storedAuditSubmissions,
     storedModuleSettings,
     storedFinanceTasks,
+    storedInvoiceLines,
+    storedPolicies,
+    storedPolicyAcknowledgements,
+    storedPolicyQuestions,
     holidayRequests,
+    currentUser,
+    staffList,
   ]);
 
   return (
     <>
       <PageHeader
         eyebrow="General Practice Operations Portal"
-        title="Practice Manager Control Centre"
+        title={`${currentUser.role} Dashboard`}
         action={
           <div className="dashboard-readiness-card">
             <span>System readiness</span>
@@ -259,22 +401,32 @@ export function DashboardPage({ holidayRequests = [] }) {
           </div>
         }
       >
-        Dashboard v4 uses the design-system page header, panels and alert banners
-        while keeping the existing service-layer calculations.
+        {getRoleHomeSummary(currentUser)} This is now a role-based operational
+        dashboard with generated alerts from workforce, compliance, training,
+        audits, finance and governance.
       </PageHeader>
 
       <section className="metric-grid">
         <MetricCard
-          title="Open inbox"
-          value={dashboardData.openInboxItems.length}
-          detail="Active alerts and tasks"
+          title="Role alerts"
+          value={dashboardData.operationalAlertMetrics.openAlerts.length}
+          detail={`${dashboardData.operationalAlertMetrics.highPriorityAlerts.length} high priority`}
           icon={Bell}
         />
         <MetricCard
-          title="High priority"
-          value={dashboardData.highPriorityInboxItems.length}
-          detail="Needs management attention"
-          icon={AlertTriangle}
+          title="Cover risks"
+          value={
+            dashboardData.coverMetrics.riskyPendingRequests.length +
+            dashboardData.coverMetrics.riskyApprovedRequests.length
+          }
+          detail={`${dashboardData.coverMetrics.unsafeDates.length} unsafe date(s)`}
+          icon={CalendarDays}
+        />
+        <MetricCard
+          title="Wage run-rate"
+          value={formatMoney(dashboardData.workforceFinancialSummary.totalMonthlyCost)}
+          detail={`${formatMoney(dashboardData.workforceFinancialSummary.arrsClaimableMonthly)} ARRS claimable`}
+          icon={Users}
         />
         <MetricCard
           title="Overdue policies"
@@ -301,6 +453,12 @@ export function DashboardPage({ holidayRequests = [] }) {
           icon={PoundSterling}
         />
         <MetricCard
+          title="Dispensary profit"
+          value={formatMoney(dashboardData.dispensaryProfitability.grossProfit)}
+          detail={`${dashboardData.dispensaryProfitability.lossRows.length} loss line(s)`}
+          icon={Building2}
+        />
+        <MetricCard
           title="Outstanding"
           value={formatMoney(dashboardData.financeOutstanding)}
           detail="Expected finance not received"
@@ -313,6 +471,19 @@ export function DashboardPage({ holidayRequests = [] }) {
           icon={ToggleRight}
         />
       </section>
+
+      {dashboardData.coverMetrics.riskyApprovedRequests.length > 0 ? (
+        <AlertBanner
+          tone="danger"
+          title="Approved leave is causing cover warnings"
+          icon={AlertTriangle}
+        >
+          {dashboardData.coverMetrics.riskyApprovedRequests.length} approved leave
+          request
+          {dashboardData.coverMetrics.riskyApprovedRequests.length === 1 ? " is" : "s are"}{" "}
+          currently below minimum cover rules. Review Staff or Calendar.
+        </AlertBanner>
+      ) : null}
 
       {dashboardData.disabledModules.length > 0 ? (
         <AlertBanner
@@ -339,10 +510,59 @@ export function DashboardPage({ holidayRequests = [] }) {
       ) : null}
 
       <section className="content-grid">
+        <Panel className="panel">
+          <SectionHeader eyebrow="Role workspace" title={`${currentUser.name} · ${currentUser.role}`}>
+            The app now changes available modules and dashboard context based on
+            the selected user role.
+          </SectionHeader>
+
+          <div className="role-summary-grid">
+            <div>
+              <span>Dashboard mode</span>
+              <strong>{currentUser.dashboardMode}</strong>
+            </div>
+            <div>
+              <span>Access level</span>
+              <strong>{currentUser.accessLevel}</strong>
+            </div>
+            <div>
+              <span>Accessible modules</span>
+              <strong>{dashboardData.userAccessSummary.accessibleCount}</strong>
+            </div>
+            <div>
+              <span>Blocked modules</span>
+              <strong>{dashboardData.userAccessSummary.noAccessCount}</strong>
+            </div>
+          </div>
+        </Panel>
+
+        <Panel className="panel">
+          <SectionHeader eyebrow="Generated inbox" title="Automated operational alerts">
+            These are generated from real module state rather than static demo
+            cards.
+          </SectionHeader>
+
+          <div className="dashboard-alert-list">
+            {dashboardData.roleOperationalAlerts.slice(0, 5).map((alert) => (
+              <div className="dashboard-alert-item" key={alert.id}>
+                <div>
+                  <strong>{alert.title}</strong>
+                  <span>
+                    {alert.module} · {alert.assignedTo} · {alert.dueText}
+                  </span>
+                </div>
+                <Badge>{alert.priority}</Badge>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      </section>
+
+      <section className="content-grid">
         <Panel className="panel panel-large">
           <SectionHeader eyebrow="Priority" title="Management action list">
-            A combined list of overdue and pending items across compliance,
-            training, audits, finance and staff leave.
+            A combined list of overdue, pending and unsafe-cover items across the
+            practice operations portal.
           </SectionHeader>
 
           <DataTable
@@ -356,7 +576,7 @@ export function DashboardPage({ holidayRequests = [] }) {
             ]}
             rows={dashboardData.priorityActions}
             emptyTitle="No priority actions"
-            emptyMessage="There are no overdue or pending management actions showing right now."
+            emptyMessage="There are no overdue, unsafe-cover or pending management actions showing right now."
             renderCell={(row, key) => {
               if (key === "title") return <strong>{row.title}</strong>;
 
@@ -380,7 +600,7 @@ export function DashboardPage({ holidayRequests = [] }) {
 
         <Panel as="aside" className="panel">
           <SectionHeader eyebrow="System health" title="Prototype status">
-            Current build readiness and risk position.
+            Current build readiness, data safety and cover-checking position.
           </SectionHeader>
 
           <div className="dashboard-health-list">
@@ -396,13 +616,15 @@ export function DashboardPage({ holidayRequests = [] }) {
             </div>
             <div>
               <Users size={18} />
-              <span>{staff.length} mock staff profiles</span>
+              <span>{staffList.length} workforce profiles</span>
               <Badge>Live prototype</Badge>
             </div>
             <div>
-              <Stethoscope size={18} />
-              <span>Care navigation governance required</span>
-              <Badge>High risk</Badge>
+              <CalendarDays size={18} />
+              <span>{dashboardData.coverMetrics.unsafeDates.length} unsafe cover date(s)</span>
+              <Badge>
+                {dashboardData.coverMetrics.unsafeDates.length > 0 ? "Review" : "Clear"}
+              </Badge>
             </div>
             <div>
               <ToggleRight size={18} />
@@ -417,8 +639,58 @@ export function DashboardPage({ holidayRequests = [] }) {
 
       <section className="content-grid">
         <Panel className="panel">
-          <SectionHeader eyebrow="Finance" title="Finance snapshot">
-            Finance v1 summary from expected payments and finance tasks.
+          <SectionHeader eyebrow="Staff cover" title="Leave cover exceptions">
+            Medium/high-risk leave requests from the new cover-checker service.
+          </SectionHeader>
+
+          <div className="governance-alert-grid">
+            {[
+              ...dashboardData.coverMetrics.riskyApprovedRequests,
+              ...dashboardData.coverMetrics.riskyPendingRequests,
+            ].slice(0, 6).map((request) => (
+              <div className="governance-alert" key={`dashboard-cover-${request.id}`}>
+                <div>
+                  <strong>{request.staffName}</strong>
+                  <span>
+                    {formatDate(request.date)} · {request.status} · {" "}
+                    {request.coverWarnings.map((warning) => warning.team).join(", ")}
+                  </span>
+                </div>
+                <Badge>{request.coverRisk}</Badge>
+              </div>
+            ))}
+          </div>
+        </Panel>
+
+        <Panel className="panel">
+          <SectionHeader eyebrow="Workforce" title="Payroll, leave balance and room exceptions">
+            Workforce alerts now include low balances, leave over balance and room conflicts.
+          </SectionHeader>
+
+          <div className="dashboard-finance-grid">
+            <div>
+              <span>Monthly wage run-rate</span>
+              <strong>{formatMoney(dashboardData.workforceFinancialSummary.totalMonthlyCost)}</strong>
+            </div>
+            <div>
+              <span>Annualised wage cost</span>
+              <strong>{formatMoney(dashboardData.workforceFinancialSummary.annualisedCost)}</strong>
+            </div>
+            <div>
+              <span>ARRS claimable</span>
+              <strong>{formatMoney(dashboardData.workforceFinancialSummary.arrsClaimableMonthly)}</strong>
+            </div>
+            <div>
+              <span>Room conflicts</span>
+              <strong>{dashboardData.workforceAlerts.roomConflicts.length}</strong>
+            </div>
+          </div>
+        </Panel>
+
+        <Panel className="panel">
+          <SectionHeader eyebrow="Finance" title="Finance and dispensary snapshot">
+            Finance v2.3 includes payment tracking, finance tasks and dispensary
+            GPP vs supplier cost profitability.
           </SectionHeader>
 
           <div className="dashboard-finance-grid">
@@ -427,49 +699,25 @@ export function DashboardPage({ holidayRequests = [] }) {
               <strong>{formatMoney(dashboardData.financeOutstanding)}</strong>
             </div>
             <div>
-              <span>Open finance tasks</span>
-              <strong>{dashboardData.openFinanceTasks.length}</strong>
+              <span>Dispensary gross profit</span>
+              <strong>{formatMoney(dashboardData.dispensaryProfitability.grossProfit)}</strong>
             </div>
             <div>
-              <span>High priority finance tasks</span>
-              <strong>{dashboardData.highPriorityFinanceTasks.length}</strong>
+              <span>Loss-making drug lines</span>
+              <strong>{dashboardData.dispensaryProfitability.lossRows.length}</strong>
+            </div>
+            <div>
+              <span>Missing invoice matches</span>
+              <strong>{dashboardData.dispensaryProfitability.missingInvoiceRows.length}</strong>
+            </div>
+            <div>
+              <span>Open finance tasks</span>
+              <strong>{dashboardData.openFinanceTasks.length}</strong>
             </div>
             <div>
               <span>Overdue finance tasks</span>
               <strong>{dashboardData.overdueFinanceTasks.length}</strong>
             </div>
-          </div>
-
-          <div className="dashboard-alert-list dashboard-section-spacing">
-            {dashboardData.openFinanceTasks.slice(0, 4).map((task) => (
-              <div className="dashboard-alert-item" key={task.id}>
-                <div>
-                  <strong>{task.title}</strong>
-                  <span>
-                    {task.area} · {task.owner} · {getDueText(task.dueDate)}
-                  </span>
-                </div>
-                <Badge>{task.priority}</Badge>
-              </div>
-            ))}
-          </div>
-        </Panel>
-
-        <Panel className="panel">
-          <SectionHeader eyebrow="Modules" title="Module configuration">
-            Shows enabled and disabled modules from Settings.
-          </SectionHeader>
-
-          <div className="module-status-grid">
-            {dashboardData.safeModuleSettings.map((module) => (
-              <div className="module-status-card" key={module.id}>
-                <div>
-                  <strong>{module.name}</strong>
-                  <span>{module.governanceStatus}</span>
-                </div>
-                <Badge>{module.enabled ? "On" : "Off"}</Badge>
-              </div>
-            ))}
           </div>
         </Panel>
       </section>
@@ -499,6 +747,26 @@ export function DashboardPage({ holidayRequests = [] }) {
         </Panel>
 
         <Panel className="panel">
+          <SectionHeader eyebrow="Modules" title="Module configuration">
+            Shows enabled and disabled modules from Settings.
+          </SectionHeader>
+
+          <div className="module-status-grid">
+            {dashboardData.safeModuleSettings.map((module) => (
+              <div className="module-status-card" key={module.id}>
+                <div>
+                  <strong>{module.name}</strong>
+                  <span>{module.governanceStatus}</span>
+                </div>
+                <Badge>{module.enabled ? "On" : "Off"}</Badge>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      </section>
+
+      <section className="content-grid">
+        <Panel className="panel">
           <SectionHeader eyebrow="Compliance" title="Policy review position">
             Overdue and upcoming policy review items.
           </SectionHeader>
@@ -515,7 +783,7 @@ export function DashboardPage({ holidayRequests = [] }) {
                   <div>
                     <strong>{policy.name}</strong>
                     <span>
-                      {policy.owner} · {formatDate(policy.reviewDue)} ·{" "}
+                      {policy.owner} · {formatDate(policy.reviewDue)} · {" "}
                       {policy.acknowledgement}% acknowledged
                     </span>
                   </div>
@@ -524,9 +792,7 @@ export function DashboardPage({ holidayRequests = [] }) {
               ))}
           </div>
         </Panel>
-      </section>
 
-      <section className="content-grid">
         <Panel className="panel">
           <SectionHeader eyebrow="Training" title="Training exceptions">
             Overdue and due-soon training records.
@@ -539,7 +805,7 @@ export function DashboardPage({ holidayRequests = [] }) {
                   <div>
                     <strong>{record.staffName}</strong>
                     <span>
-                      {getCourseName(record.courseId)} · expires{" "}
+                      {getCourseName(record.courseId)} · expires {" "}
                       {formatDate(record.expiryDate)}
                     </span>
                   </div>
@@ -549,7 +815,9 @@ export function DashboardPage({ holidayRequests = [] }) {
             )}
           </div>
         </Panel>
+      </section>
 
+      <section className="content-grid">
         <Panel className="panel">
           <SectionHeader eyebrow="Audits" title="Audit exceptions">
             Overdue audits and audit submissions with actions required.
@@ -561,7 +829,7 @@ export function DashboardPage({ holidayRequests = [] }) {
                 <div>
                   <strong>{audit.name}</strong>
                   <span>
-                    {audit.assignedTo} · {formatDate(audit.nextDue)} ·{" "}
+                    {audit.assignedTo} · {formatDate(audit.nextDue)} · {" "}
                     {audit.category}
                   </span>
                 </div>
@@ -582,28 +850,28 @@ export function DashboardPage({ holidayRequests = [] }) {
             ))}
           </div>
         </Panel>
-      </section>
 
-      <Panel className="panel">
-        <SectionHeader eyebrow="Production readiness" title="Before this becomes real software">
-          These high-risk items must be solved before any real-world deployment or
-          patient-identifiable data use.
-        </SectionHeader>
+        <Panel className="panel">
+          <SectionHeader eyebrow="Production readiness" title="Before this becomes real software">
+            High-risk items that must be solved before any real-world deployment
+            or patient-identifiable data use.
+          </SectionHeader>
 
-        <div className="governance-alert-grid">
-          {dashboardData.highRiskProductionGaps.map((item) => (
-            <div className="governance-alert" key={item.area}>
-              <div>
-                <strong>{item.area}</strong>
-                <span>
-                  {item.status} · {item.note}
-                </span>
+          <div className="governance-alert-grid">
+            {dashboardData.highRiskProductionGaps.map((item) => (
+              <div className="governance-alert" key={item.area}>
+                <div>
+                  <strong>{item.area}</strong>
+                  <span>
+                    {item.status} · {item.note}
+                  </span>
+                </div>
+                <Badge>{item.risk} risk</Badge>
               </div>
-              <Badge>{item.risk} risk</Badge>
-            </div>
-          ))}
-        </div>
-      </Panel>
+            ))}
+          </div>
+        </Panel>
+      </section>
     </>
   );
 }

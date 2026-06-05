@@ -79,7 +79,7 @@ export function Sidebar({ modules, activePage, onNavigate }) {
         {modules.map((module) => {
           const Icon = module.icon;
           const isActive = activePage === module.id;
-          const isDisabled = module.enabled === false && module.id !== "settings";
+          const isDisabled = module.enabled === false;
 
           return (
             <button
@@ -93,7 +93,7 @@ export function Sidebar({ modules, activePage, onNavigate }) {
                 .filter(Boolean)
                 .join(" ")}
               onClick={() => onNavigate(module.id)}
-              title={isDisabled ? `${module.name} is disabled` : module.name}
+              title={isDisabled ? module.lockReason || `${module.name} is unavailable` : module.name}
               aria-current={isActive ? "page" : undefined}
             >
               <Icon size={18} />

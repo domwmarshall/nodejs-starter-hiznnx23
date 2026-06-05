@@ -1,7 +1,16 @@
 import { Badge } from "./Badge";
 import { QuickModuleJump } from "./QuickModuleJump";
+import { UserSwitcher } from "./UserSwitcher";
 
-export function Topbar({ activeModule, modules, activePage, onNavigate }) {
+export function Topbar({
+  activeModule,
+  modules,
+  activePage,
+  onNavigate,
+  users,
+  activeUser,
+  onUserChange,
+}) {
   return (
     <header className="topbar">
       <div>
@@ -13,6 +22,12 @@ export function Topbar({ activeModule, modules, activePage, onNavigate }) {
       </div>
 
       <div className="topbar-actions">
+        <UserSwitcher
+          users={users}
+          activeUser={activeUser}
+          onChange={onUserChange}
+        />
+
         <QuickModuleJump
           modules={modules}
           activePage={activePage}
@@ -21,8 +36,9 @@ export function Topbar({ activeModule, modules, activePage, onNavigate }) {
 
         <div className="topbar-badges">
           <Badge>
-            {activeModule.enabled === false ? "Disabled" : activeModule.status}
+            {activeModule.enabled === false ? "Unavailable" : activeModule.status}
           </Badge>
+          <Badge>{activeModule.roleAccess || "View"}</Badge>
           <Badge>{activeModule.risk} risk</Badge>
         </div>
       </div>

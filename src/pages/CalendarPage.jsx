@@ -1,16 +1,31 @@
 import { useMemo } from "react";
-import { CalendarDays, CheckCircle2, Clock, Users } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarDays,
+  CheckCircle2,
+  Clock,
+  ShieldCheck,
+  Users,
+} from "lucide-react";
 
 import { Badge } from "../components/Badge";
 import { MetricCard } from "../components/MetricCard";
 import { SectionHeader } from "../components/SectionHeader";
 import { DataTable } from "../components/DataTable";
 
+import { staff as baseStaff } from "../data/staff";
+
 import {
-  getApprovedLeaveForDate,
   getHolidayRequestMetrics,
   getLeaveCalendarRows,
 } from "../services/staffService";
+
+import {
+  getCoverMetrics,
+  getCoverSnapshotsForDates,
+} from "../services/coverService";
+
+import { getRoomScheduleForDate } from "../services/workforceService";
 
 import {
   AlertBanner,
@@ -18,38 +33,31 @@ import {
   Panel,
 } from "../components/ui";
 
-const mockWeekDays = [
-  {
-    label: "Monday",
-    date: "2026-07-01",
-    requiredCover: "GP, nurse, reception, dispensary",
-  },
-  {
-    label: "Tuesday",
-    date: "2026-07-02",
-    requiredCover: "GP AM, reception, dispensary",
-  },
-  {
-    label: "Wednesday",
-    date: "2026-07-03",
-    requiredCover: "GP, HCA, reception, dispensary",
-  },
-  {
-    label: "Thursday",
-    date: "2026-07-04",
-    requiredCover: "GP, nurse, reception, dispensary",
-  },
-  {
-    label: "Friday",
-    date: "2026-07-05",
-    requiredCover: "ANP/GP, reception, dispensary",
-  },
+const defaultCalendarDates = [
+  "2026-07-06",
+  "2026-07-07",
+  "2026-07-08",
+  "2026-07-09",
+  "2026-07-10",
 ];
 
-export function CalendarPage({ holidayRequests = [] }) {
+function getCalendarDates(holidayRequests) {
+  const requestDates = Array.isArray(holidayRequests)
+    ? holidayRequests.map((request) => request.date).filter(Boolean)
+    : [];
+
+  return [...new Set([...defaultCalendarDates, ...requestDates])].sort();
+}
+
+export function CalendarPage({ holidayRequests = [], staffList = baseStaff }) {
   const metrics = useMemo(
     () => getHolidayRequestMetrics(holidayRequests),
     [holidayRequests]
+  );
+
+  const coverMetrics = useMemo(
+    () => getCoverMetrics({ requests: holidayRequests, staffList }),
+    [holidayRequests, staffList]
   );
 
   const leaveCalendarRows = useMemo(
@@ -59,25 +67,38 @@ export function CalendarPage({ holidayRequests = [] }) {
 
   const weekRows = useMemo(
     () =>
-      mockWeekDays.map((day) => {
-        const approvedLeave = getApprovedLeaveForDate(holidayRequests, day.date);
+      getCoverSnapshotsForDates({
+        dates: getCalendarDates(holidayRequests),
+        staffList,
+        requests: holidayRequests,
+      }),
+    [holidayRequests, staffList]
+  );
+
+  const roomRows = useMemo(
+    () =>
+      weekRows.map((snapshot) => {
+        const roomSchedule = getRoomScheduleForDate({
+          profiles: staffList,
+          requests: holidayRequests,
+          date: snapshot.date,
+        });
 
         return {
-          ...day,
-          approvedLeave,
-          leaveCount: approvedLeave.length,
-          coverStatus:
-            approvedLeave.length > 0 ? "Check cover" : "No approved leave",
+          ...snapshot,
+          roomSchedule,
+          roomConflictCount: roomSchedule.conflicts.length,
+          roomAssignedCount: roomSchedule.assignments.length,
         };
       }),
-    [holidayRequests]
+    [weekRows, staffList, holidayRequests]
   );
 
   return (
     <>
-      <PageHeader eyebrow="Calendar" title="Calendar and leave overlay">
-        Prototype calendar view showing approved leave against a mock practice
-        week. This is not a full rota engine yet.
+      <PageHeader eyebrow="Calendar" title="Calendar and leave cover overlay">
+        Calendar view showing leave requests against role-based cover rules. This
+        is now a working cover-checker prototype, not just a static rota note.
       </PageHeader>
 
       <section className="metric-grid">
@@ -94,57 +115,82 @@ export function CalendarPage({ holidayRequests = [] }) {
           icon={Clock}
         />
         <MetricCard
-          title="Rejected"
-          value={metrics.rejectedRequests.length}
-          detail="Rejected requests"
-          icon={Users}
+          title="Unsafe dates"
+          value={coverMetrics.unsafeDates.length}
+          detail="Medium/high cover warnings"
+          icon={AlertTriangle}
         />
         <MetricCard
           title="Calendar mode"
-          value="Mock"
-          detail="No database-backed rota yet"
+          value="Cover v1"
+          detail="Role-based minimum cover"
           icon={CalendarDays}
         />
       </section>
 
-      <AlertBanner
-        tone="warning"
-        title="Calendar logic is placeholder only"
-        icon={CalendarDays}
-      >
-        This page does not yet check GP or nurse capacity, duplicate leave,
-        appointment slot safety, blood collection times or required dispensary
-        cover.
-      </AlertBanner>
+      {coverMetrics.unsafeDates.length > 0 ? (
+        <AlertBanner
+          tone="warning"
+          title="Cover warnings found"
+          icon={AlertTriangle}
+        >
+          {coverMetrics.unsafeDates.length} date
+          {coverMetrics.unsafeDates.length === 1 ? " has" : "s have"} minimum-cover
+          warnings based on approved leave and the current staff patterns.
+        </AlertBanner>
+      ) : (
+        <AlertBanner tone="success" title="Cover checker active" icon={ShieldCheck}>
+          No medium/high cover warnings are currently showing for the displayed
+          dates. Pending leave still needs manager review before approval.
+        </AlertBanner>
+      )}
 
       <section className="content-grid">
         <Panel className="panel panel-large">
-          <SectionHeader eyebrow="Week view" title="Mock rota week">
-            Approved leave is shown against each mock day. Later this needs a
-            proper rota model, appointment capacity rules and cover logic.
+          <SectionHeader eyebrow="Cover view" title="Leave and minimum-cover checker">
+            This checks the displayed dates against GP/clinical, nursing,
+            reception, dispensary and management cover rules.
           </SectionHeader>
 
           <DataTable
             columns={[
-              { key: "label", label: "Day" },
+              { key: "day", label: "Day" },
               { key: "date", label: "Date" },
-              { key: "requiredCover", label: "Required cover" },
+              { key: "availableSummary", label: "Available cover" },
               { key: "approvedLeave", label: "Approved leave" },
-              { key: "coverStatus", label: "Cover status" },
+              { key: "pendingLeave", label: "Pending leave" },
+              { key: "riskLabel", label: "Cover status" },
             ]}
             rows={weekRows}
             renderCell={(row, key) => {
-              if (key === "label") return <strong>{row.label}</strong>;
+              if (key === "day") return <strong>{row.day}</strong>;
+              if (key === "date") return row.formattedDate;
 
-              if (key === "approvedLeave") {
-                if (row.approvedLeave.length === 0) {
+              if (key === "availableSummary") {
+                return (
+                  <div className="stacked-cell">
+                    {row.availableSummary
+                      .filter((item) => item.required > 0)
+                      .map((item) => (
+                        <span key={item.teamId}>
+                          {item.label}: {item.available}/{item.required}
+                        </span>
+                      ))}
+                  </div>
+                );
+              }
+
+              if (key === "approvedLeave" || key === "pendingLeave") {
+                const leaveRows = row[key];
+
+                if (leaveRows.length === 0) {
                   return <span className="muted-text">None</span>;
                 }
 
                 return (
                   <div className="stacked-cell">
-                    {row.approvedLeave.map((leave) => (
-                      <span key={leave.id}>
+                    {leaveRows.map((leave) => (
+                      <span key={`${key}-${leave.id}`}>
                         {leave.staffName} · {leave.hours} hrs
                       </span>
                     ))}
@@ -152,8 +198,17 @@ export function CalendarPage({ holidayRequests = [] }) {
                 );
               }
 
-              if (key === "coverStatus") {
-                return <Badge>{row.coverStatus}</Badge>;
+              if (key === "riskLabel") {
+                return (
+                  <div className="stacked-cell">
+                    <Badge>{row.riskLabel}</Badge>
+                    <span>
+                      {row.warnings.length > 0
+                        ? row.warnings.map((warning) => warning.team).join(", ")
+                        : "Minimum cover maintained"}
+                    </span>
+                  </div>
+                );
               }
 
               return row[key];
@@ -162,56 +217,128 @@ export function CalendarPage({ holidayRequests = [] }) {
         </Panel>
 
         <Panel as="aside" className="panel">
-          <SectionHeader eyebrow="Calendar warning" title="Not a rota engine yet">
-            This page should stay simple until we build a proper rota and absence
-            data model.
+          <SectionHeader eyebrow="Cover engine" title="What is checked">
+            Current minimum-cover rules are simple and editable later.
           </SectionHeader>
 
           <div className="settings-mini-list">
             <div>
               <CheckCircle2 size={18} />
-              <span>Approved leave overlay works</span>
-            </div>
-            <div>
-              <Clock size={18} />
-              <span>Rota rules planned for later</span>
+              <span>Staff working pattern is checked by date</span>
             </div>
             <div>
               <Users size={18} />
-              <span>Cover checking not active yet</span>
+              <span>Approved leave is removed from available cover</span>
+            </div>
+            <div>
+              <Clock size={18} />
+              <span>Pending leave is shown separately for review</span>
             </div>
             <div>
               <CalendarDays size={18} />
-              <span>Calendar remains mock-only</span>
+              <span>Cover warnings feed Staff and Dashboard</span>
             </div>
           </div>
         </Panel>
       </section>
 
+
+
       <Panel className="panel">
-        <SectionHeader eyebrow="Leave list" title="All leave requests">
-          This list is shared with the Staff page through the staff service layer.
+        <SectionHeader eyebrow="Rooms" title="Room allocation by day">
+          Staff are assigned to primary or secondary rooms by role priority, with
+          blocked rooms and approved leave removed.
         </SectionHeader>
 
         <DataTable
           columns={[
-            { key: "formattedDate", label: "Date" },
-            { key: "staffName", label: "Staff member" },
-            { key: "hours", label: "Hours" },
-            { key: "reason", label: "Reason" },
-            { key: "status", label: "Status" },
+            { key: "day", label: "Day" },
+            { key: "date", label: "Date" },
+            { key: "roomAssignedCount", label: "Assigned" },
+            { key: "blockedRooms", label: "Blocked rooms" },
+            { key: "roomConflictCount", label: "Conflicts" },
+            { key: "roomSchedule", label: "Assignments" },
           ]}
-          rows={leaveCalendarRows}
-          emptyTitle="No leave requests"
-          emptyMessage="Add leave requests from the Staff page."
+          rows={roomRows}
           renderCell={(row, key) => {
-            if (key === "staffName") return <strong>{row.staffName}</strong>;
-            if (key === "hours") return `${row.hours} hrs`;
-            if (key === "status") return <Badge>{row.status}</Badge>;
+            if (key === "day") return <strong>{row.day}</strong>;
+            if (key === "date") return row.formattedDate;
+            if (key === "roomAssignedCount") return `${row.roomAssignedCount} staff`;
+            if (key === "roomConflictCount") return <Badge>{row.roomConflictCount > 0 ? `${row.roomConflictCount} conflict(s)` : "Clear"}</Badge>;
+            if (key === "blockedRooms") {
+              if (row.roomSchedule.blockedRooms.length === 0) return <span className="muted-text">None</span>;
+              return (
+                <div className="stacked-cell">
+                  {row.roomSchedule.blockedRooms.map((block) => (
+                    <span key={block.id}>{block.room} · {block.time}</span>
+                  ))}
+                </div>
+              );
+            }
+            if (key === "roomSchedule") {
+              return (
+                <div className="stacked-cell">
+                  {row.roomSchedule.assignments.slice(0, 5).map((assignment) => (
+                    <span key={`${row.date}-${assignment.staffName}`}>
+                      {assignment.staffName} → {assignment.room}
+                    </span>
+                  ))}
+                </div>
+              );
+            }
             return row[key];
           }}
         />
       </Panel>
+
+      <section className="content-grid">
+        <Panel className="panel">
+          <SectionHeader eyebrow="Cover warnings" title="Dates needing review">
+            Dates where approved leave may leave a role below minimum cover.
+          </SectionHeader>
+
+          <div className="governance-alert-grid">
+            {coverMetrics.unsafeDates.map((snapshot) => (
+              <div className="governance-alert" key={`unsafe-${snapshot.date}`}>
+                <div>
+                  <strong>
+                    {snapshot.day} · {snapshot.formattedDate}
+                  </strong>
+                  <span>
+                    {snapshot.warnings.map((warning) => warning.message).join(" · ")}
+                  </span>
+                </div>
+                <Badge>{snapshot.riskLabel}</Badge>
+              </div>
+            ))}
+          </div>
+        </Panel>
+
+        <Panel className="panel">
+          <SectionHeader eyebrow="Leave list" title="All leave requests">
+            This list is shared with the Staff page through the staff service layer.
+          </SectionHeader>
+
+          <DataTable
+            columns={[
+              { key: "formattedDate", label: "Date" },
+              { key: "staffName", label: "Staff member" },
+              { key: "hours", label: "Hours" },
+              { key: "reason", label: "Reason" },
+              { key: "status", label: "Status" },
+            ]}
+            rows={leaveCalendarRows}
+            emptyTitle="No leave requests"
+            emptyMessage="Add leave requests from the Staff page."
+            renderCell={(row, key) => {
+              if (key === "staffName") return <strong>{row.staffName}</strong>;
+              if (key === "hours") return `${row.hours} hrs`;
+              if (key === "status") return <Badge>{row.status}</Badge>;
+              return row[key];
+            }}
+          />
+        </Panel>
+      </section>
     </>
   );
 }

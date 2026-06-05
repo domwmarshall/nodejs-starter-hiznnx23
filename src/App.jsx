@@ -9,6 +9,7 @@ import { Topbar } from "./components/Topbar";
 import { MobileNav } from "./components/MobileNav";
 import { modules } from "./data/modules";
 import { moduleSettings } from "./data/settings";
+import { appUsers } from "./data/users";
 import { useLocalStorageState } from "./hooks/useLocalStorageState";
 
 import { DashboardPage } from "./pages/DashboardPage";
@@ -39,6 +40,20 @@ import {
 } from "./services/appShellService";
 
 import {
+  ACTIVE_USER_STORAGE_KEY,
+  applyUserAccessToModules,
+  getAppUserById,
+  getDefaultAppUser,
+} from "./services/userService";
+
+import {
+  WORKFORCE_PROFILES_STORAGE_KEY,
+  addContractAmendment as addContractAmendmentToProfiles,
+  getSafeWorkforceProfiles,
+  getDefaultWorkforceProfiles,
+} from "./services/workforceService";
+
+import {
   AlertBanner,
   Button,
   Panel,
@@ -46,7 +61,9 @@ import {
 
 import "./style.css";
 
-function DisabledModulePage({ module, onOpenSettings }) {
+function DisabledModulePage({ module, activeUser, onOpenSettings }) {
+  const isRoleLocked = module.roleLocked === true;
+
   return (
     <>
       <section className="disabled-module-panel">
@@ -55,26 +72,33 @@ function DisabledModulePage({ module, onOpenSettings }) {
         </div>
 
         <div>
-          <p className="eyebrow">Module disabled</p>
-          <h1>{module.name} is currently switched off</h1>
+          <p className="eyebrow">
+            {isRoleLocked ? "Role access restricted" : "Module disabled"}
+          </p>
+          <h1>{module.name} is currently unavailable</h1>
           <p>
-            This module has been disabled in Settings. In a production version,
-            this would be controlled by administrator permissions and practice
-            configuration.
+            {isRoleLocked
+              ? `${activeUser.role} does not have access to this module in the current role-based prototype. Switch back to Practice Manager to manage all areas.`
+              : "This module has been disabled in Settings. In a production version, this would be controlled by administrator permissions and practice configuration."}
           </p>
         </div>
       </section>
 
       <Panel className="panel">
-        <SectionHeader eyebrow="How to re-enable" title="Turn the module back on">
-          Go to Settings, find the module in Module Toggles, then click Enable.
+        <SectionHeader
+          eyebrow={isRoleLocked ? "Role-based access" : "How to re-enable"}
+          title={isRoleLocked ? "This is now behaving like a role-gated app" : "Turn the module back on"}
+        >
+          {isRoleLocked
+            ? "Use the View as selector in the top bar to test different staff experiences. Practice Manager can access the full admin system."
+            : "Go to Settings, find the module in Module Toggles, then click Enable."}
         </SectionHeader>
 
         <div className="blue-box">
-          <strong>Prototype behaviour</strong>
+          <strong>Current access</strong>
           <p>
-            The sidebar still shows disabled modules so you can see the full app
-            structure, but access is blocked until the module is enabled again.
+            {module.lockReason ||
+              `${module.name} is not available to ${activeUser.role}.`}
           </p>
         </div>
 
@@ -88,22 +112,32 @@ function DisabledModulePage({ module, onOpenSettings }) {
   );
 }
 
-function PrototypeBanner({ activeModule, activeModuleSetting }) {
+function PrototypeBanner({ activeModule, activeModuleSetting, activeUser }) {
   return (
     <AlertBanner
-      tone={activeModuleSetting?.enabled === false ? "warning" : "info"}
+      tone={activeModule.enabled === false ? "warning" : "info"}
       title="Prototype mode"
       icon={AlertTriangle}
     >
-      Dummy data only · No patient-identifiable data · {activeModule.name}: {" "}
-      {activeModuleSetting?.enabled === false ? "disabled" : "enabled"} · {" "}
-      {activeModule.risk} risk
+      Dummy data only · No patient-identifiable data · View as {activeUser.role} ·{" "}
+      {activeModule.name}: {activeModule.enabled === false ? "unavailable" : "available"} ·{" "}
+      {activeModule.risk} risk · Access: {activeModule.roleAccess || "View"}
     </AlertBanner>
   );
 }
 
 function App() {
   const [activePage, setActivePage] = useState("dashboard");
+
+  const [activeUserId, setActiveUserId] = useLocalStorageState(
+    ACTIVE_USER_STORAGE_KEY,
+    getDefaultAppUser().id
+  );
+
+  const activeUser = useMemo(
+    () => getAppUserById(activeUserId),
+    [activeUserId]
+  );
 
   const [moduleToggleSettings, setModuleToggleSettings] = useLocalStorageState(
     MODULE_SETTINGS_STORAGE_KEY,
@@ -115,14 +149,31 @@ function App() {
     getDefaultHolidayRequests()
   );
 
+  const [workforceProfiles, setWorkforceProfiles] = useLocalStorageState(
+    WORKFORCE_PROFILES_STORAGE_KEY,
+    getDefaultWorkforceProfiles()
+  );
+
+  const safeWorkforceProfiles = useMemo(
+    () => getSafeWorkforceProfiles(workforceProfiles),
+    [workforceProfiles]
+  );
+
   const safeModuleToggleSettings = useMemo(
     () => mergeModuleToggleSettings(moduleToggleSettings, moduleSettings),
     [moduleToggleSettings]
   );
 
   const modulesWithToggleState = useMemo(
-    () => applyToggleStateToModules(modules, safeModuleToggleSettings),
-    [safeModuleToggleSettings]
+    () => {
+      const toggleAwareModules = applyToggleStateToModules(
+        modules,
+        safeModuleToggleSettings
+      );
+
+      return applyUserAccessToModules(toggleAwareModules, activeUser);
+    },
+    [safeModuleToggleSettings, activeUser]
   );
 
   const activeModule = useMemo(
@@ -152,6 +203,16 @@ function App() {
     );
   }
 
+  function addContractAmendment(staffName, amendment) {
+    setWorkforceProfiles((currentProfiles) =>
+      addContractAmendmentToProfiles(currentProfiles, staffName, amendment)
+    );
+  }
+
+  function resetWorkforceProfiles() {
+    setWorkforceProfiles(getDefaultWorkforceProfiles());
+  }
+
   function renderEnabledPage() {
     if (activePage === "staff") {
       return (
@@ -159,16 +220,25 @@ function App() {
           holidayRequests={holidayRequests}
           addHolidayRequest={addHolidayRequest}
           updateHolidayRequestStatus={updateHolidayRequestStatus}
+          currentUser={activeUser}
+          staffList={safeWorkforceProfiles}
+          addContractAmendment={addContractAmendment}
+          resetWorkforceProfiles={resetWorkforceProfiles}
         />
       );
     }
 
     if (activePage === "calendar") {
-      return <CalendarPage holidayRequests={holidayRequests} />;
+      return <CalendarPage holidayRequests={holidayRequests} currentUser={activeUser} staffList={safeWorkforceProfiles} />;
     }
 
-    if (activePage === "inbox") return <InboxPage />;
-    if (activePage === "compliance") return <CompliancePage />;
+    if (activePage === "inbox") {
+      return <InboxPage holidayRequests={holidayRequests} currentUser={activeUser} staffList={safeWorkforceProfiles} />;
+    }
+
+    if (activePage === "compliance") {
+      return <CompliancePage currentUser={activeUser} staffList={safeWorkforceProfiles} />;
+    }
     if (activePage === "training") return <TrainingPage />;
     if (activePage === "audits") return <AuditsPage />;
     if (activePage === "finance") return <FinancePage />;
@@ -183,14 +253,21 @@ function App() {
       );
     }
 
-    return <DashboardPage holidayRequests={holidayRequests} />;
+    return (
+      <DashboardPage
+        holidayRequests={holidayRequests}
+        currentUser={activeUser}
+        staffList={safeWorkforceProfiles}
+      />
+    );
   }
 
   function renderActivePage() {
-    if (activeModule.enabled === false && activePage !== "settings") {
+    if (activeModule.enabled === false && activePage !== "dashboard") {
       return (
         <DisabledModulePage
           module={activeModule}
+          activeUser={activeUser}
           onOpenSettings={() => setActivePage("settings")}
         />
       );
@@ -213,14 +290,18 @@ function App() {
           modules={modulesWithToggleState}
           activePage={activePage}
           onNavigate={setActivePage}
+          users={appUsers}
+          activeUser={activeUser}
+          onUserChange={setActiveUserId}
         />
 
         <PrototypeBanner
           activeModule={activeModule}
           activeModuleSetting={activeModuleSetting}
+          activeUser={activeUser}
         />
 
-        <AppStatusStrip metrics={appShellMetrics} />
+        <AppStatusStrip metrics={appShellMetrics} activeUser={activeUser} />
 
         {renderActivePage()}
       </main>
